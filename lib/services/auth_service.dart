@@ -3,7 +3,10 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart' as app_models;
+import '../constants/role_constants.dart';
+import '../utils/user_mapper.dart';
 import 'supabase_service.dart';
+import 'logging_service.dart';
 
 class AuthService {
   static app_models.User? _currentAppUser;
@@ -41,7 +44,7 @@ class AuthService {
       emailRedirectTo: null,
       data: {
         'name': name,
-        'role': role.toString().split('.').last,
+        'role': RoleConstants.roleEnumToDb(role),
         'gender': gender ?? 'male',
       },
     );
@@ -56,14 +59,14 @@ class AuthService {
         'id': response.user!.id,
         'email': email,
         'name': name,
-        'role': role.toString().split('.').last,
+        'role': RoleConstants.roleEnumToDb(role),
         'society_ids': [],
         'joined_date': DateTime.now().toIso8601String(),
         'gender': gender ?? 'male',
       });
     } catch (e) {
       // Profile might already exist from trigger, ignore duplicate error
-      print('Profile creation note: $e');
+      LoggingService.warning('Profile creation note: $e');
     }
 
     // Load the user profile
@@ -87,34 +90,10 @@ class AuthService {
 
   // ------------------------- MAP DATABASE TO USER MODEL -------------------------
   static app_models.User _mapToUser(Map<String, dynamic> data) {
-    return app_models.User(
-      id: data['id'],
-      email: data['email'],
-      name: data['name'],
-      role: _parseRole(data['role']),
-      societyIds: List<String>.from(data['society_ids'] ?? []),
-      bio: data['bio'],
-      phone: data['phone'],
-      profileImageUrl: data['profile_image_url'],
-      joinedDate: DateTime.parse(data['joined_date']),
+    return UserMapper.fromMapWithSocieties(
+      data,
+      List<String>.from(data['society_ids'] ?? []),
     );
-  }
-
-  static app_models.UserRole _parseRole(String? role) {
-    switch (role) {
-      case 'super_admin':
-        return app_models.UserRole.superAdmin;
-      case 'admin':
-        return app_models.UserRole.admin;
-      case 'president':
-        return app_models.UserRole.president;
-      case 'vicePresident':
-      case 'vice_president':
-        return app_models.UserRole.vicePresident;
-      case 'student':
-      default:
-        return app_models.UserRole.student;
-    }
   }
 
   // ------------------------- GET CURRENT USER -------------------------
@@ -190,15 +169,33 @@ class AuthService {
     if (user == null) throw Exception('No user logged in');
 
     // Re-authenticate to verify password
-    await _client.auth.signInWithPassword(
-      email: user.email!,
-      password: password,
-    );
+    try {
+      await _client.auth.signInWithPassword(
+        email: user.email!,
+        password: password,
+      );
+    } on AuthException catch (e) {
+      throw Exception('Password verification failed: ${e.message}');
+    }
 
-    // Delete user data from database
-    await _client.from('users').delete().eq('id', user.id);
+    // Delete user data from all related tables
+    // Order matters: delete child records before parent
+    await _client.from('event_reminders').delete().eq('user_id', user.id);
+    await _client.from('event_feedback').delete().eq('user_id', user.id);
+    await _client.from('event_waitlist').delete().eq('user_id', user.id);
     await _client.from('registrations').delete().eq('user_id', user.id);
     await _client.from('bookmarks').delete().eq('user_id', user.id);
+    await _client.from('user_points').delete().eq('user_id', user.id);
+
+    // Delete the auth user via server-side RPC
+    // This calls a SECURITY DEFINER function that uses auth.admin API
+    try {
+      await _client.rpc('delete_user_account', params: {'user_id': user.id});
+    } catch (e) {
+      // If RPC doesn't exist, fall back to deleting the profile row
+      // The auth user will remain but profile data is gone
+      await _client.from('users').delete().eq('id', user.id);
+    }
 
     // Sign out
     await signOut();

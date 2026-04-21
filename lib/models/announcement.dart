@@ -1,7 +1,45 @@
 // lib/models/announcement.dart
 // Announcement model for society/event announcements
 
-enum AnnouncementPriority { low, normal, high, urgent }
+/// Announcement priority levels — single source of truth
+enum AnnouncementPriority {
+  low,
+  normal,
+  high,
+  urgent;
+
+  /// Convert to database string format
+  String toDbString() => name;
+
+  /// Parse from database string
+  static AnnouncementPriority fromString(String? value) {
+    switch (value?.toLowerCase()) {
+      case 'low':
+        return AnnouncementPriority.low;
+      case 'high':
+        return AnnouncementPriority.high;
+      case 'urgent':
+        return AnnouncementPriority.urgent;
+      case 'normal':
+      default:
+        return AnnouncementPriority.normal;
+    }
+  }
+
+  /// Get display name for UI
+  String get displayName {
+    switch (this) {
+      case AnnouncementPriority.low:
+        return 'Low';
+      case AnnouncementPriority.normal:
+        return 'Normal';
+      case AnnouncementPriority.high:
+        return 'High';
+      case AnnouncementPriority.urgent:
+        return 'Urgent';
+    }
+  }
+}
 
 class Announcement {
   final String id;

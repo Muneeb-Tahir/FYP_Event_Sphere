@@ -45,13 +45,22 @@ import 'services/offline_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
-  await dotenv.load(fileName: ".env");
+  // Load environment variables from .env for development
+  // For production builds, use: flutter build apk --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
+  String supabaseUrl = const String.fromEnvironment('SUPABASE_URL');
+  String supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  // Initialize Supabase with environment variables
+  // Fallback to .env file if --dart-define values are not set (development mode)
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    await dotenv.load(fileName: ".env");
+    supabaseUrl = dotenv.env['SUPABASE_URL']!;
+    supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']!;
+  }
+
+  // Initialize Supabase
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL']!,
-    anonKey: dotenv.env['SUPABASE_ANON_KEY']!,
+    url: supabaseUrl,
+    anonKey: supabaseAnonKey,
   );
 
   // Initialize auth state (checks if user is already logged in)
@@ -59,6 +68,9 @@ void main() async {
 
   // Initialize Cache Service (Hive for offline support)
   await CacheService.initialize();
+
+  // Load persisted settings (theme, notifications, privacy)
+  await SettingsService.loadSettings();
 
   // Initialize Offline Service (connectivity + action queue)
   await OfflineService.initialize();
@@ -100,6 +112,7 @@ class _EventManagementAppState extends State<EventManagementApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Event Sphere',
+      navigatorKey: NotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
 
       // Dynamic theme based on settings
@@ -208,6 +221,8 @@ class _EventManagementAppState extends State<EventManagementApp> {
         return const EditProfilePage();
       case '/search':
         return const GlobalSearchPage();
+      case '/forgot-password':
+        return const ChangePasswordPage();
       default:
         return const SplashScreen();
     }

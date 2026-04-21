@@ -16,13 +16,13 @@ class SupabaseService {
   // Check if user is authenticated
   static bool get isAuthenticated => currentUser != null;
 
-  // Database reference helpers
-  static get users => client.from('users');
-  static get events => client.from('events');
-  static get registrations => client.from('registrations');
-  static get bookmarks => client.from('bookmarks');
-  static get announcements => client.from('announcements');
-  static get expenses => client.from('expenses');
-  static get polls => client.from('polls');
-  static get societies => client.from('societies');
+  // Database reference helpers — explicit return types for IDE support
+  static SupabaseQueryBuilder get users => client.from('users');
+  static SupabaseQueryBuilder get events => client.from('events');
+  static SupabaseQueryBuilder get registrations => client.from('registrations');
+  static SupabaseQueryBuilder get bookmarks => client.from('bookmarks');
+  static SupabaseQueryBuilder get announcements => client.from('announcements');
+  static SupabaseQueryBuilder get expenses => client.from('expenses');
+  static SupabaseQueryBuilder get polls => client.from('polls');
+  static SupabaseQueryBuilder get societies => client.from('societies');
 }

@@ -86,45 +86,8 @@ enum EventCategory {
   String get displayName => toDbString();
 }
 
-/// Announcement priority levels
-enum AnnouncementPriority {
-  low,
-  normal,
-  high,
-  urgent;
-
-  /// Convert to database string format
-  String toDbString() => name;
-
-  /// Parse from database string
-  static AnnouncementPriority fromString(String? value) {
-    switch (value?.toLowerCase()) {
-      case 'low':
-        return AnnouncementPriority.low;
-      case 'high':
-        return AnnouncementPriority.high;
-      case 'urgent':
-        return AnnouncementPriority.urgent;
-      case 'normal':
-      default:
-        return AnnouncementPriority.normal;
-    }
-  }
-
-  /// Get display name for UI
-  String get displayName {
-    switch (this) {
-      case AnnouncementPriority.low:
-        return 'Low';
-      case AnnouncementPriority.normal:
-        return 'Normal';
-      case AnnouncementPriority.high:
-        return 'High';
-      case AnnouncementPriority.urgent:
-        return 'Urgent';
-    }
-  }
-}
+// NOTE: AnnouncementPriority is defined in models/announcement.dart.
+// Do NOT duplicate it here. Import from there instead.
 
 /// Registration status for events
 enum RegistrationStatus {
@@ -303,52 +266,5 @@ enum ResourceType {
   }
 }
 
-/// Notification types
-enum NotificationType {
-  eventReminder,
-  registration,
-  announcement,
-  system;
-
-  /// Convert to database string format
-  String toDbString() {
-    switch (this) {
-      case NotificationType.eventReminder:
-        return 'event_reminder';
-      case NotificationType.registration:
-        return 'registration';
-      case NotificationType.announcement:
-        return 'announcement';
-      case NotificationType.system:
-        return 'system';
-    }
-  }
-
-  /// Parse from database string
-  static NotificationType fromString(String? value) {
-    switch (value?.toLowerCase()) {
-      case 'event_reminder':
-        return NotificationType.eventReminder;
-      case 'registration':
-        return NotificationType.registration;
-      case 'announcement':
-        return NotificationType.announcement;
-      default:
-        return NotificationType.system;
-    }
-  }
-
-  /// Get display name for UI
-  String get displayName {
-    switch (this) {
-      case NotificationType.eventReminder:
-        return 'Event Reminder';
-      case NotificationType.registration:
-        return 'Registration';
-      case NotificationType.announcement:
-        return 'Announcement';
-      case NotificationType.system:
-        return 'System';
-    }
-  }
-}
+// NOTE: NotificationType is defined in models/notification.dart (11 values).
+// Do NOT duplicate it here. Import from there instead.

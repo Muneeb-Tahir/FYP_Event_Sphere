@@ -5,7 +5,12 @@ import '../services/supabase_service.dart';
 import 'logging_service.dart';
 
 class EmailService {
-  static const String _functionUrl = 'https://dnzpfbcbfwpfczduqsag.supabase.co/functions/v1/send-email';
+  // NOTE: Emails are sent via SupabaseService.client.functions.invoke('send-email')
+  // The old _functionUrl constant was dead code. If you need direct HTTP calls,
+  // use the Supabase client functions API instead.
+  //
+  // SECURITY: User-supplied values (name, eventTitle) are interpolated into HTML.
+  // The Edge Function should HTML-encode these to prevent XSS.
 
   /// Send welcome email to new user
   static Future<void> sendWelcomeEmail(String email, String name) async {

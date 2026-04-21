@@ -14,6 +14,7 @@ class Event {
   final String? imageUrl; // Event poster/thumbnail URL
   final int? maxAttendees; // Maximum capacity (null = unlimited)
   final int currentAttendees; // Current registration count
+  final DateTime? endDate; // Event end time (null = not specified)
   final DateTime? deletedAt; // Soft delete timestamp (null = active)
 
   Event({
@@ -29,6 +30,7 @@ class Event {
     this.imageUrl,
     this.maxAttendees,
     this.currentAttendees = 0,
+    this.endDate,
     this.deletedAt,
   });
 
@@ -61,6 +63,7 @@ class Event {
     String? imageUrl,
     int? maxAttendees,
     int? currentAttendees,
+    DateTime? endDate,
     DateTime? deletedAt,
   }) {
     return Event(
@@ -76,6 +79,7 @@ class Event {
       imageUrl: imageUrl ?? this.imageUrl,
       maxAttendees: maxAttendees ?? this.maxAttendees,
       currentAttendees: currentAttendees ?? this.currentAttendees,
+      endDate: endDate ?? this.endDate,
       deletedAt: deletedAt ?? this.deletedAt,
     );
   }
@@ -95,6 +99,7 @@ class Event {
       'image_url': imageUrl,
       'max_attendees': maxAttendees,
       'current_attendees': currentAttendees,
+      'end_date': endDate?.toIso8601String(),
       'deleted_at': deletedAt?.toIso8601String(),
     };
   }
@@ -114,6 +119,7 @@ class Event {
       imageUrl: map['image_url'],
       maxAttendees: map['max_attendees'],
       currentAttendees: map['current_attendees'] ?? 0,
+      endDate: map['end_date'] != null ? DateTime.parse(map['end_date']) : null,
       deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at']) : null,
     );
   }

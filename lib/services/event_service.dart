@@ -23,10 +23,11 @@ class EventService {
         return cached.map((e) => _mapToEvent(e)).toList();
       }
 
-      // Fetch only approved events from Supabase
+      // Fetch only approved, non-deleted events from Supabase
       final data = await SupabaseService.events
           .select()
           .eq('approval_status', 'approved')
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       // Cache the data
@@ -59,6 +60,9 @@ class EventService {
       if (approvedOnly) {
         query = query.eq('approval_status', 'approved');
       }
+
+      // Always exclude soft-deleted events
+      query = query.isFilter('deleted_at', null);
 
       if (category != null && category.isNotEmpty) {
         query = query.eq('category', category);
@@ -96,17 +100,20 @@ class EventService {
   }
 
   // ------------------------- GET APPROVED EVENTS -------------------------
+  // NOTE: Supabase .stream() doesn't support .eq() filters on non-primary-key
+  // columns, so we must filter client-side. This downloads all events.
   static Stream<List<Event>> getApprovedEventsStream() {
     return SupabaseService.client
         .from('events')
         .stream(primaryKey: ['id'])
         .order('date', ascending: true)
         .map((data) {
-          LoggingService.database('Events stream received: ${data.length} events');
-          // Filter approved events on the client side
-          final approved = data.where((e) => e['approval_status'] == 'approved').toList();
-          LoggingService.debug('Approved events: ${approved.length}');
-          return approved.map((e) => _mapToEvent(e)).toList();
+          // Filter approved AND non-deleted events client-side
+          final filtered = data.where((e) =>
+            e['approval_status'] == 'approved' &&
+            e['deleted_at'] == null
+          ).toList();
+          return filtered.map((e) => _mapToEvent(e)).toList();
         });
   }
 
@@ -127,6 +134,7 @@ class EventService {
         .select()
         .eq('category', category)
         .eq('approval_status', 'approved')
+        .isFilter('deleted_at', null)
         .order('date', ascending: true);
 
     return (data as List).map((e) => _mapToEvent(e)).toList();
@@ -147,6 +155,7 @@ class EventService {
       'image_url': event.imageUrl,
       'max_attendees': event.maxAttendees,
       'current_attendees': 0,
+      'end_date': event.endDate?.toIso8601String(),
       'created_at': DateTime.now().toIso8601String(),
     });
   }
@@ -162,6 +171,7 @@ class EventService {
     if (data['category'] != null) updateData['category'] = data['category'];
     if (data['approvalStatus'] != null) updateData['approval_status'] = data['approvalStatus'];
     if (data.containsKey('image_url')) updateData['image_url'] = data['image_url'];
+    if (data['end_date'] != null) updateData['end_date'] = (data['end_date'] as DateTime).toIso8601String();
 
     updateData['updated_at'] = DateTime.now().toIso8601String();
 
@@ -274,6 +284,7 @@ class EventService {
         .select()
         .or('title.ilike.%$query%,description.ilike.%$query%,venue.ilike.%$query%')
         .eq('approval_status', 'approved')
+        .isFilter('deleted_at', null)
         .order('date', ascending: true);
 
     return (data as List).map((e) => _mapToEvent(e)).toList();
@@ -294,6 +305,8 @@ class EventService {
       imageUrl: data['image_url'],
       maxAttendees: data['max_attendees'],
       currentAttendees: data['current_attendees'] ?? 0,
+      endDate: data['end_date'] != null ? DateTime.tryParse(data['end_date']) : null,
+      deletedAt: data['deleted_at'] != null ? DateTime.tryParse(data['deleted_at']) : null,
     );
   }
 }

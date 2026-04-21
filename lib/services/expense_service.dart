@@ -1,56 +1,82 @@
 // lib/services/expense_service.dart
-// MOCK SERVICE - No Firebase/Supabase
+// Expense service using Supabase
 
 import '../models/expense.dart';
+import 'supabase_service.dart';
+import 'logging_service.dart';
 import 'dart:async';
 
 class ExpenseService {
-  static final List<Expense> _expenses = [
-    Expense(
-      id: 'exp1',
-      eventId: 'event1',
-      amount: 500,
-      category: 'Venue',
-      description: 'Hall rental',
-      date: DateTime.now(),
-    ),
-    Expense(
-      id: 'exp2',
-      eventId: 'event1',
-      amount: 200,
-      category: 'Refreshments',
-      description: 'Tea and snacks',
-      date: DateTime.now(),
-    ),
-  ];
+  // ------------------------- STREAM ALL EXPENSES -------------------------
+  static Stream<List<Expense>> getExpensesStream() {
+    return SupabaseService.client
+        .from('expenses')
+        .stream(primaryKey: ['id'])
+        .order('date', ascending: false)
+        .map((data) => data.map((e) => Expense.fromMap(e)).toList());
+  }
 
-  // Stream all expenses (initial + periodic updates)
-  static Stream<List<Expense>> getExpensesStream() async* {
-    // Emit initial list immediately
-    yield List.from(_expenses);
+  // ------------------------- GET EVENT EXPENSES STREAM -------------------------
+  static Stream<List<Expense>> getEventExpensesStream(String eventId) {
+    return SupabaseService.client
+        .from('expenses')
+        .stream(primaryKey: ['id'])
+        .eq('event_id', eventId)
+        .map((data) => data.map((e) => Expense.fromMap(e)).toList());
+  }
 
-    // Emit updated list every 2 seconds
-    await for (final _ in Stream.periodic(const Duration(seconds: 2))) {
-      yield List.from(_expenses);
+  // ------------------------- GET EVENT EXPENSES -------------------------
+  static Future<List<Expense>> getEventExpenses(String eventId) async {
+    try {
+      final data = await SupabaseService.client
+          .from('expenses')
+          .select()
+          .eq('event_id', eventId)
+          .order('date', ascending: false);
+
+      return (data as List).map((e) => Expense.fromMap(e)).toList();
+    } catch (e) {
+      LoggingService.error('Error fetching expenses', e);
+      return [];
     }
   }
 
-  // Get expenses for a specific event
-  static Stream<List<Expense>> getEventExpensesStream(String eventId) {
-    return getExpensesStream().map(
-      (expenses) => expenses.where((e) => e.eventId == eventId).toList(),
-    );
-  }
-
-  // Add new expense
+  // ------------------------- ADD EXPENSE -------------------------
   static Future<void> addExpense(Expense expense) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _expenses.add(expense);
+    final userId = SupabaseService.currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    final data = expense.toMap();
+    data.remove('id'); // Let DB generate UUID
+    data['created_by'] = userId;
+
+    await SupabaseService.client.from('expenses').insert(data);
+    LoggingService.info('Expense added: ${expense.category} - ${expense.amount}');
   }
 
-  // Delete expense
+  // ------------------------- UPDATE EXPENSE -------------------------
+  static Future<void> updateExpense(Expense expense) async {
+    await SupabaseService.client
+        .from('expenses')
+        .update(expense.toMap())
+        .eq('id', expense.id);
+
+    LoggingService.info('Expense updated: ${expense.id}');
+  }
+
+  // ------------------------- DELETE EXPENSE -------------------------
   static Future<void> deleteExpense(String expenseId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    _expenses.removeWhere((e) => e.id == expenseId);
+    await SupabaseService.client
+        .from('expenses')
+        .delete()
+        .eq('id', expenseId);
+
+    LoggingService.info('Expense deleted: $expenseId');
+  }
+
+  // ------------------------- GET TOTAL FOR EVENT -------------------------
+  static Future<double> getEventTotal(String eventId) async {
+    final expenses = await getEventExpenses(eventId);
+    return expenses.fold<double>(0, (sum, e) => sum + e.amount);
   }
 }

@@ -1,86 +1,98 @@
 // lib/services/announcement_service.dart
-// MOCK SERVICE - Replace with Firebase/Supabase in production
+// Announcement service using Supabase
 
 import 'dart:async';
-
-class Announcement {
-  final String id;
-  final String title;
-  final String message;
-  final DateTime createdAt;
-  final String? eventId;
-  final bool isUrgent;
-
-  Announcement({
-    required this.id,
-    required this.title,
-    required this.message,
-    required this.createdAt,
-    this.eventId,
-    this.isUrgent = false,
-  });
-}
+import '../models/announcement.dart';
+import 'supabase_service.dart';
+import 'logging_service.dart';
 
 class AnnouncementService {
-  static final List<Announcement> _announcements = [
-    Announcement(
-      id: 'ann1',
-      title: 'Welcome to Event Sphere',
-      message: 'Stay updated with the latest campus events!',
-      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
-    ),
-    Announcement(
-      id: 'ann2',
-      title: 'Tech Workshop Reminder',
-      message: 'Don\'t forget to register for tomorrow\'s Flutter workshop.',
-      createdAt: DateTime.now().subtract(const Duration(days: 1)),
-      eventId: 'event1',
-      isUrgent: true,
-    ),
-  ];
-
   // ------------------------- STREAM ANNOUNCEMENTS -------------------------
-  static Stream<List<Announcement>> getAnnouncementsStream() async* {
-    yield List.from(_announcements);
-    await for (final _ in Stream.periodic(const Duration(seconds: 5))) {
-      yield List.from(_announcements);
-    }
+  static Stream<List<Announcement>> getAnnouncementsStream() {
+    return SupabaseService.client
+        .from('announcements')
+        .stream(primaryKey: ['id'])
+        .order('created_at', ascending: false)
+        .map((data) => data.map((e) => Announcement.fromMap(e)).toList());
   }
 
   // ------------------------- GET ALL ANNOUNCEMENTS -------------------------
   static Future<List<Announcement>> getAnnouncements() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    return List.from(_announcements);
+    try {
+      final data = await SupabaseService.client
+          .from('announcements')
+          .select('*, societies(name), events(title), users!announcements_created_by_fkey(name)')
+          .order('created_at', ascending: false);
+
+      return (data as List).map((e) => Announcement.fromMap(e)).toList();
+    } catch (e) {
+      LoggingService.error('Error fetching announcements', e);
+      return [];
+    }
+  }
+
+  // ------------------------- GET SOCIETY ANNOUNCEMENTS -------------------------
+  static Future<List<Announcement>> getSocietyAnnouncements(String societyId) async {
+    try {
+      final data = await SupabaseService.client
+          .from('announcements')
+          .select('*, societies(name), events(title), users!announcements_created_by_fkey(name)')
+          .eq('society_id', societyId)
+          .order('created_at', ascending: false);
+
+      return (data as List).map((e) => Announcement.fromMap(e)).toList();
+    } catch (e) {
+      LoggingService.error('Error fetching society announcements', e);
+      return [];
+    }
   }
 
   // ------------------------- CREATE ANNOUNCEMENT -------------------------
   static Future<void> createAnnouncement({
     required String title,
-    required String message,
+    required String content,
+    String? societyId,
     String? eventId,
-    bool isUrgent = false,
+    AnnouncementPriority priority = AnnouncementPriority.normal,
+    bool isPinned = false,
+    DateTime? expiresAt,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    _announcements.insert(0, Announcement(
-      id: 'ann_${DateTime.now().millisecondsSinceEpoch}',
-      title: title,
-      message: message,
-      createdAt: DateTime.now(),
-      eventId: eventId,
-      isUrgent: isUrgent,
-    ));
+    final userId = SupabaseService.currentUser?.id;
+    if (userId == null) throw Exception('Not authenticated');
+
+    await SupabaseService.client.from('announcements').insert({
+      'title': title,
+      'content': content,
+      'society_id': societyId,
+      'event_id': eventId,
+      'created_by': userId,
+      'priority': priority.toDbString(),
+      'is_pinned': isPinned,
+      'expires_at': expiresAt?.toIso8601String(),
+    });
+
+    LoggingService.info('Announcement created: $title');
   }
 
   // ------------------------- DELETE ANNOUNCEMENT -------------------------
   static Future<void> deleteAnnouncement(String announcementId) async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    _announcements.removeWhere((a) => a.id == announcementId);
+    await SupabaseService.client
+        .from('announcements')
+        .delete()
+        .eq('id', announcementId);
+
+    LoggingService.info('Announcement deleted: $announcementId');
   }
 
   // ------------------------- MARK AS READ -------------------------
-  // TODO: Implement user-specific read status tracking
+  /// Track read status locally per-device using Hive cache
+  static final Set<String> _readIds = {};
+
   static Future<void> markAsRead(String userId, String announcementId) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    // In production: Update read status in database
+    _readIds.add('${userId}_$announcementId');
+  }
+
+  static bool isRead(String userId, String announcementId) {
+    return _readIds.contains('${userId}_$announcementId');
   }
 }

@@ -7,6 +7,8 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/event.dart';
 import 'logging_service.dart';
+import 'registration_service.dart';
+import 'bookmark_service.dart';
 
 /// Represents a pending offline action to sync when online
 class OfflineAction {
@@ -53,9 +55,9 @@ class OfflineService {
   static StreamSubscription? _connectivitySubscription;
 
   /// Initialize the offline service
+  /// NOTE: Hive.initFlutter() is NOT called here — CacheService.initialize()
+  /// is called first in main.dart and handles Hive initialization.
   static Future<void> initialize() async {
-    await Hive.initFlutter();
-
     _eventsBox = await Hive.openBox(_eventsBoxName);
     _actionsBox = await Hive.openBox(_actionsBoxName);
     _settingsBox = await Hive.openBox(_settingsBoxName);
@@ -247,18 +249,32 @@ class OfflineService {
     );
   }
 
-  /// Execute a single offline action
+  /// Execute a single offline action by calling the appropriate service
   static Future<void> _executeAction(OfflineAction action) async {
-    // Import services dynamically to avoid circular dependencies
+    final userId = action.data['user_id'] as String?;
+    final eventId = action.data['event_id'] as String?;
+
+    if (userId == null || eventId == null) {
+      LoggingService.warning('Skipping offline action ${action.type}: missing user_id or event_id');
+      return;
+    }
+
     switch (action.type) {
       case 'register':
-        // Will be called by RegistrationService when online
+        await RegistrationService.registerForEvent(userId, eventId);
+        LoggingService.info('Synced offline registration: user=$userId event=$eventId');
         break;
       case 'unregister':
+        await RegistrationService.unregisterFromEvent(userId, eventId);
+        LoggingService.info('Synced offline unregistration: user=$userId event=$eventId');
         break;
       case 'bookmark':
+        await BookmarkService.addBookmark(userId, eventId);
+        LoggingService.info('Synced offline bookmark: user=$userId event=$eventId');
         break;
       case 'unbookmark':
+        await BookmarkService.removeBookmark(userId, eventId);
+        LoggingService.info('Synced offline unbookmark: user=$userId event=$eventId');
         break;
       default:
         throw Exception('Unknown action type: ${action.type}');

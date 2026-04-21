@@ -4,6 +4,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart' as app_models;
+import '../utils/user_mapper.dart';
 import '../services/supabase_service.dart';
 import '../services/logging_service.dart';
 import '../core/result.dart';
@@ -210,34 +211,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Map database record to User model
   app_models.User _mapToUser(Map<String, dynamic> data) {
-    return app_models.User(
-      id: data['id'],
-      email: data['email'],
-      name: data['name'],
-      role: _parseRole(data['role']),
-      societyIds: List<String>.from(data['society_ids'] ?? []),
-      bio: data['bio'],
-      phone: data['phone'],
-      profileImageUrl: data['profile_image_url'],
-      joinedDate: DateTime.parse(data['joined_date']),
+    return UserMapper.fromMapWithSocieties(
+      data,
+      List<String>.from(data['society_ids'] ?? []),
     );
-  }
-
-  app_models.UserRole _parseRole(String? role) {
-    switch (role) {
-      case 'super_admin':
-        return app_models.UserRole.superAdmin;
-      case 'admin':
-        return app_models.UserRole.admin;
-      case 'president':
-        return app_models.UserRole.president;
-      case 'vicePresident':
-      case 'vice_president':
-        return app_models.UserRole.vicePresident;
-      case 'student':
-      default:
-        return app_models.UserRole.student;
-    }
   }
 }
 

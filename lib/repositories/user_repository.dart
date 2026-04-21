@@ -3,6 +3,8 @@
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/user.dart' as app_models;
+import '../constants/role_constants.dart';
+import '../utils/user_mapper.dart';
 import '../core/result.dart';
 import '../services/supabase_service.dart';
 import '../services/logging_service.dart';
@@ -53,7 +55,7 @@ class UserRepository implements BaseRepository<app_models.User> {
         'id': user.id,
         'email': user.email,
         'name': user.name,
-        'role': user.role.toString().split('.').last,
+        'role': RoleConstants.roleEnumToDb(user.role),
         'society_ids': user.societyIds,
         'bio': user.bio,
         'phone': user.phone,
@@ -191,33 +193,9 @@ class UserRepository implements BaseRepository<app_models.User> {
 
   /// Map database record to User model
   app_models.User _mapToUser(Map<String, dynamic> data) {
-    return app_models.User(
-      id: data['id'],
-      email: data['email'],
-      name: data['name'],
-      role: _parseRole(data['role']),
-      societyIds: List<String>.from(data['society_ids'] ?? []),
-      bio: data['bio'],
-      phone: data['phone'],
-      profileImageUrl: data['profile_image_url'],
-      joinedDate: DateTime.parse(data['joined_date'] ?? DateTime.now().toIso8601String()),
+    return UserMapper.fromMapWithSocieties(
+      data,
+      List<String>.from(data['society_ids'] ?? []),
     );
-  }
-
-  app_models.UserRole _parseRole(String? role) {
-    switch (role) {
-      case 'super_admin':
-        return app_models.UserRole.superAdmin;
-      case 'admin':
-        return app_models.UserRole.admin;
-      case 'president':
-        return app_models.UserRole.president;
-      case 'vicePresident':
-      case 'vice_president':
-        return app_models.UserRole.vicePresident;
-      case 'student':
-      default:
-        return app_models.UserRole.student;
-    }
   }
 }

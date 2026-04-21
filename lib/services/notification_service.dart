@@ -2,12 +2,13 @@
 // Firebase Cloud Messaging Push Notifications
 
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'supabase_service.dart';
 import 'settings_service.dart';
+import 'logging_service.dart';
 
 // Background message handler - must be top-level function
 @pragma('vm:entry-point')
@@ -19,6 +20,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 class NotificationService {
   static final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+
+  /// Global navigator key for deep linking from notifications
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   static String? _fcmToken;
   static String? get fcmToken => _fcmToken;
@@ -131,8 +135,34 @@ class NotificationService {
 
   // ===================== HANDLE NOTIFICATION TAP =====================
   static void _handleNotificationTap(RemoteMessage message) {
-    debugPrint('Notification tapped: ${message.data}');
-    // TODO: Navigate to specific screen based on message data
+    LoggingService.info('Notification tapped: ${message.data}');
+    final data = message.data;
+    final type = data['type'] as String?;
+    final id = data['id'] as String?;
+
+    // Navigate based on notification type
+    final navigator = navigatorKey.currentState;
+    if (navigator == null) return;
+
+    switch (type) {
+      case 'event':
+        if (id != null) {
+          navigator.pushNamed('/event-detail', arguments: {'eventId': id});
+        }
+        break;
+      case 'announcement':
+        navigator.pushNamed('/announcements');
+        break;
+      case 'poll':
+        navigator.pushNamed('/poll');
+        break;
+      case 'registration':
+        navigator.pushNamed('/registered-events');
+        break;
+      default:
+        navigator.pushNamed('/home');
+        break;
+    }
   }
 
   // ===================== SHOW LOCAL NOTIFICATION =====================

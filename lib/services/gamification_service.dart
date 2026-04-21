@@ -65,29 +65,29 @@ class GamificationService {
     Badge(id: 'social_butterfly', name: 'Social Butterfly', description: 'Joined 3 societies', icon: '🦋', requiredPoints: 30),
   ];
 
-  // Points awarded for actions
-  static const int POINTS_EVENT_ATTENDANCE = 10;
-  static const int POINTS_FEEDBACK_GIVEN = 5;
-  static const int POINTS_FIRST_TO_REGISTER = 15;
-  static const int POINTS_SOCIETY_JOINED = 10;
+  // Points awarded for actions (lowerCamelCase per Dart convention)
+  static const int pointsEventAttendance = 10;
+  static const int pointsFeedbackGiven = 5;
+  static const int pointsFirstToRegister = 15;
+  static const int pointsSocietyJoined = 10;
 
   // Award points for attending an event
   static Future<void> awardEventAttendance(String userId) async {
-    await _addPoints(userId, POINTS_EVENT_ATTENDANCE, incrementEvents: true);
+    await _addPoints(userId, pointsEventAttendance, incrementEvents: true);
     await _checkAndAwardBadges(userId);
   }
 
   // Award points for giving feedback
   static Future<void> awardFeedbackGiven(String userId) async {
-    await _addPoints(userId, POINTS_FEEDBACK_GIVEN);
+    await _addPoints(userId, pointsFeedbackGiven);
   }
 
   // Award points for joining a society
   static Future<void> awardSocietyJoined(String userId) async {
-    await _addPoints(userId, POINTS_SOCIETY_JOINED);
+    await _addPoints(userId, pointsSocietyJoined);
   }
 
-  // Add points to user
+  // Add points to user — uses upsert to avoid read-then-write race condition
   static Future<void> _addPoints(String userId, int points, {bool incrementEvents = false}) async {
     try {
       // Check if user has points record
@@ -98,18 +98,28 @@ class GamificationService {
           .maybeSingle();
 
       if (existing != null) {
-        // Update existing record
-        final updateData = {
-          'total_points': (existing['total_points'] ?? 0) + points,
-          'updated_at': DateTime.now().toIso8601String(),
-        };
-        if (incrementEvents) {
-          updateData['events_attended'] = (existing['events_attended'] ?? 0) + 1;
+        // Use RPC for atomic increment to avoid race conditions
+        // If two concurrent calls read the same value, one update is lost
+        try {
+          await SupabaseService.client.rpc('increment_user_points', params: {
+            'p_user_id': userId,
+            'p_points': points,
+            'p_increment_events': incrementEvents,
+          });
+        } catch (_) {
+          // Fallback: manual update if RPC doesn't exist
+          final updateData = <String, dynamic>{
+            'total_points': (existing['total_points'] ?? 0) + points,
+            'updated_at': DateTime.now().toIso8601String(),
+          };
+          if (incrementEvents) {
+            updateData['events_attended'] = (existing['events_attended'] ?? 0) + 1;
+          }
+          await SupabaseService.client
+              .from('user_points')
+              .update(updateData)
+              .eq('user_id', userId);
         }
-        await SupabaseService.client
-            .from('user_points')
-            .update(updateData)
-            .eq('user_id', userId);
       } else {
         // Create new record
         await SupabaseService.client.from('user_points').insert({

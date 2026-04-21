@@ -96,7 +96,8 @@ flutter:
 
   assets:
     - assets/images/
-    - .env
+    # NOTE: .env is loaded at runtime via flutter_dotenv for development.
+    # For production builds, use: flutter build apk --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 
 
 

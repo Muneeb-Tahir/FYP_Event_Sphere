@@ -1,5 +1,11 @@
 // lib/utils/sanitizer.dart
 // Input sanitization utilities for security
+//
+// NOTE ON DATABASE SANITIZATION:
+// Supabase uses parameterized queries internally, so sanitizeForDb() is
+// redundant for SQL injection prevention. It is kept for backward compatibility
+// but marked as @Deprecated. The HTML sanitize() method is still useful
+// for user content rendered in email templates or WebViews.
 
 /// Sanitizes user input to prevent XSS and other injection attacks
 class Sanitizer {

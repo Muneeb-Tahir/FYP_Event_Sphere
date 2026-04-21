@@ -122,12 +122,20 @@ class WaitlistService {
           .eq('event_id', eventId)
           .eq('user_id', userId);
 
-      // Update positions of users behind
-      await SupabaseService.client
+      // Update positions of users behind (decrement by 1)
+      final behindUsers = await SupabaseService.client
           .from('event_waitlist')
-          .update({'position': SupabaseService.client.rpc('decrement_position')})
+          .select('id, position')
           .eq('event_id', eventId)
-          .gt('position', position);
+          .gt('position', position)
+          .order('position', ascending: true);
+
+      for (final entry in (behindUsers as List)) {
+        await SupabaseService.client
+            .from('event_waitlist')
+            .update({'position': (entry['position'] as int) - 1})
+            .eq('id', entry['id']);
+      }
 
       return true;
     } catch (e) {
