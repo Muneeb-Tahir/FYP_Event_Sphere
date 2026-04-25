@@ -1192,40 +1192,6 @@ class _AboutPopup extends StatelessWidget {
                   _buildInfoRow('Department', 'of Computer Science'),
                   _buildInfoDivider(),
 
-                  const SizedBox(height: 24),
-
-                  // ── Last Updated Badge ──
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 32),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF9D4EDD).withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: const Color(0xFF9D4EDD).withOpacity(0.25)),
-                    ),
-                    child: Column(
-                      children: [
-                        const Text(
-                          'SCHEDULE LAST UPDATED ON',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFFB8A9C9),
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '07:50 PM | ${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF9D4EDD),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
 
                   const SizedBox(height: 20),
 
