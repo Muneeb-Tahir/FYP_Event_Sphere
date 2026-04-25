@@ -705,6 +705,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with TickerProviderStateM
       focusNode: focusNode,
       keyboardType: keyboardType,
       validator: validator,
+      enableInteractiveSelection: true,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       cursorColor: Colors.white,
       decoration: InputDecoration(
@@ -755,6 +756,7 @@ class _LoginPageState extends ConsumerState<LoginPage> with TickerProviderStateM
       focusNode: _passwordFocus,
       obscureText: obscurePassword,
       validator: Validators.password,
+      enableInteractiveSelection: true,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       cursorColor: Colors.white,
       decoration: InputDecoration(
@@ -777,9 +779,9 @@ class _LoginPageState extends ConsumerState<LoginPage> with TickerProviderStateM
           color: Colors.white.withOpacity(0.7),
           size: 20,
         ),
-        suffixIcon: GestureDetector(
-          onTap: () => setState(() => obscurePassword = !obscurePassword),
-          child: Icon(
+        suffixIcon: IconButton(
+          onPressed: () => setState(() => obscurePassword = !obscurePassword),
+          icon: Icon(
             obscurePassword
                 ? Icons.visibility_off_outlined
                 : Icons.visibility_outlined,

@@ -994,8 +994,53 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Action Buttons
-                  if (currentUser?.role == UserRole.student || currentUser?.role == UserRole.president) ...[
+                  // Action Buttons — only for upcoming events
+                  if (event!.date.isBefore(DateTime.now())) ...[
+                    // Past event — show ended banner, no registration
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        children: [
+                          const Icon(Icons.event_busy, color: Colors.red, size: 36),
+                          const SizedBox(height: 12),
+                          const Text(
+                            'This event has ended',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Ended on ${_formatDate(event!.date)}',
+                            style: const TextStyle(fontSize: 13, color: Color(0xFFB8A9C9)),
+                          ),
+                          if (isRegistered) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.check_circle, size: 16, color: Colors.green),
+                                  SizedBox(width: 6),
+                                  Text('You attended this event', style: TextStyle(color: Colors.green, fontSize: 13, fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ] else if (currentUser?.role == UserRole.student || currentUser?.role == UserRole.president) ...[
+                    // Upcoming event — show registration buttons
                     // Show waitlist button if event is full and not registered
                     if (event!.isFull && !isRegistered) ...[
                       SizedBox(

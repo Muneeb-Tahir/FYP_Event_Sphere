@@ -35,23 +35,28 @@ class GlassCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-        child: Container(
-          width: width,
-          height: height,
-          padding: padding,
-          decoration: BoxDecoration(
-            gradient: gradient ?? AppGradients.glass,
-            color: gradient == null
-                ? (backgroundColor ?? Colors.white.withOpacity(0.15))
-                : null,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: borderColor ?? Colors.white.withOpacity(0.2),
-              width: 1.5,
+        child: GestureDetector(
+          // deferToChild ensures taps pass through to TextFormFields
+          // instead of being absorbed by the BackdropFilter layer
+          behavior: HitTestBehavior.deferToChild,
+          child: Container(
+            width: width,
+            height: height,
+            padding: padding,
+            decoration: BoxDecoration(
+              gradient: gradient ?? AppGradients.glass,
+              color: gradient == null
+                  ? (backgroundColor ?? Colors.white.withOpacity(0.15))
+                  : null,
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(
+                color: borderColor ?? Colors.white.withOpacity(0.2),
+                width: 1.5,
+              ),
+              boxShadow: boxShadow,
             ),
-            boxShadow: boxShadow,
+            child: child,
           ),
-          child: child,
         ),
       ),
     );

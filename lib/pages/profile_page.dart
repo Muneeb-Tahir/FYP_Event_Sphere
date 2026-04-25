@@ -122,6 +122,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
     }
   }
 
+  /// Pull-to-refresh handler — reloads user profile, stats, and bookmarks from the server
+  Future<void> _refreshProfile() async {
+    // Refresh user data from Supabase
+    await ref.read(authProvider.notifier).refreshUser();
+    // Also refresh the AuthService static cache so both are in sync
+    await AuthService.refreshCurrentUser();
+
+    // Update local controllers with fresh data
+    final user = ref.read(currentUserProvider);
+    if (user != null && mounted) {
+      setState(() {
+        nameController.text = user.name;
+        emailController.text = user.email;
+        bioController.text = user.bio ?? '';
+        phoneController.text = user.phone ?? '';
+        _selectedAvatarId = user.profileImageUrl;
+        _loadingStats = true;
+      });
+    }
+
+    // Reload stats
+    await _loadStats();
+  }
+
   void _saveProfile() async {
     // Validate form first
     if (!_validateForm()) {
@@ -325,19 +349,9 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
     // Navigate to edit profile page which now has image picker
     final result = await Navigator.pushNamed(context, '/edit-profile');
 
-    if (result == true) {
-      // Refresh profile data
-      final user = ref.read(currentUserProvider);
-      if (user != null) {
-        setState(() {
-          _selectedAvatarId = user.profileImageUrl;
-          nameController.text = user.name ?? '';
-          emailController.text = user.email ?? '';
-          bioController.text = user.bio ?? '';
-          phoneController.text = user.phone ?? '';
-        });
-        _loadStats();
-      }
+    if (result == true && mounted) {
+      // Use centralized refresh that updates Riverpod state first, then local controllers
+      await _refreshProfile();
     }
   }
 
@@ -399,67 +413,72 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // User Profile Card
-            _buildAnimatedItem(0, _buildUserProfileCard(user)),
-            const SizedBox(height: 24),
-
-            // Stats Row
-            _buildAnimatedItem(1, _buildStatsRow()),
-            const SizedBox(height: 24),
-
-            // Societies Section
-            if (user != null && user.societyIds.isNotEmpty) ...[
-              _buildAnimatedItem(2, _buildSocietiesSection(user.societyIds)),
+      body: RefreshIndicator(
+        onRefresh: _refreshProfile,
+        color: const Color(0xFF9D4EDD),
+        backgroundColor: const Color(0xFF1E1B2E),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // User Profile Card
+              _buildAnimatedItem(0, _buildUserProfileCard(user)),
               const SizedBox(height: 24),
-            ],
 
-            // Account Section
-            _buildAnimatedItem(3, _buildSettingsGroup('Account', [
-              _SettingsItem(Icons.person_outline, 'Edit Profile', () => _openEditProfile()),
-              _SettingsItem(Icons.lock_outline, 'Change Password', () => Navigator.pushNamed(context, '/account-settings')),
-              _SettingsItem(Icons.shield_outlined, 'Privacy', () => Navigator.pushNamed(context, '/privacy-settings')),
-            ])),
-            const SizedBox(height: 16),
+              // Stats Row
+              _buildAnimatedItem(1, _buildStatsRow()),
+              const SizedBox(height: 24),
 
-            // Preferences Section
-            _buildAnimatedItem(4, _buildSettingsGroup('Preferences', [
-              _SettingsItem(Icons.notifications_outlined, 'Notifications', () => Navigator.pushNamed(context, '/notification-settings')),
-              _SettingsItem(Icons.color_lens_outlined, 'Theme', () => Navigator.pushNamed(context, '/account-settings')),
-            ])),
-            const SizedBox(height: 16),
+              // Societies Section
+              if (user != null && user.societyIds.isNotEmpty) ...[
+                _buildAnimatedItem(2, _buildSocietiesSection(user.societyIds)),
+                const SizedBox(height: 24),
+              ],
 
-            // Account & Support Section
-            _buildAnimatedItem(5, _buildSettingsGroup('Account & Support', [
-              _SettingsItem(Icons.help_outline, 'Help & Support', () => Navigator.pushNamed(context, '/faq')),
-              _SettingsItem(Icons.info_outline, 'About App', () => _showAboutDialog()),
-            ])),
-            const SizedBox(height: 24),
+              // Account Section
+              _buildAnimatedItem(3, _buildSettingsGroup('Account', [
+                _SettingsItem(Icons.person_outline, 'Edit Profile', () => _openEditProfile()),
+                _SettingsItem(Icons.lock_outline, 'Change Password', () => Navigator.pushNamed(context, '/account-settings')),
+                _SettingsItem(Icons.shield_outlined, 'Privacy', () => Navigator.pushNamed(context, '/privacy-settings')),
+              ])),
+              const SizedBox(height: 16),
 
-            // Logout Button
-            SizedBox(
-              width: double.infinity,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.red.withOpacity(0.3)),
-                ),
-                child: TextButton.icon(
-                  onPressed: _logout,
-                  icon: const Icon(Icons.logout, color: Colors.red),
-                  label: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
-                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+              // Preferences Section
+              _buildAnimatedItem(4, _buildSettingsGroup('Preferences', [
+                _SettingsItem(Icons.notifications_outlined, 'Notifications', () => Navigator.pushNamed(context, '/notification-settings')),
+                _SettingsItem(Icons.color_lens_outlined, 'Theme', () => Navigator.pushNamed(context, '/account-settings')),
+              ])),
+              const SizedBox(height: 16),
+
+              // Account & Support Section
+              _buildAnimatedItem(5, _buildSettingsGroup('Account & Support', [
+                _SettingsItem(Icons.help_outline, 'Help & Support', () => Navigator.pushNamed(context, '/faq')),
+                _SettingsItem(Icons.info_outline, 'About App', () => _showAboutDialog()),
+              ])),
+              const SizedBox(height: 24),
+
+              // Logout Button
+              SizedBox(
+                width: double.infinity,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.red.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                  ),
+                  child: TextButton.icon(
+                    onPressed: _logout,
+                    icon: const Icon(Icons.logout, color: Colors.red),
+                    label: const Text('Logout', style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
+                    style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 40),
-          ],
+              const SizedBox(height: 40),
+            ],
+          ),
         ),
       ),
     );
@@ -567,32 +586,30 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
     );
   }
 
-  void _openEditProfile() {
-    Navigator.pushNamed(context, '/edit-profile');
+  void _openEditProfile() async {
+    final result = await Navigator.pushNamed(context, '/edit-profile');
+
+    // When returning from edit profile, refresh state so changes (including new image) show immediately
+    if (result == true && mounted) {
+      await _refreshProfile();
+    }
   }
 
   void _showAboutDialog() {
-    showDialog(
+    showGeneralDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1B2E),
-        title: const Text('About Event Sphere', style: TextStyle(color: Colors.white)),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Version 1.0.0', style: TextStyle(color: Color(0xFFB8A9C9))),
-            SizedBox(height: 8),
-            Text('Event Sphere is your campus event management companion.', style: TextStyle(color: Color(0xFFB8A9C9))),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close', style: TextStyle(color: Color(0xFF9D4EDD))),
-          ),
-        ],
-      ),
+      barrierDismissible: true,
+      barrierLabel: 'About',
+      barrierColor: Colors.black.withOpacity(0.7),
+      transitionDuration: const Duration(milliseconds: 400),
+      pageBuilder: (context, anim1, anim2) => const SizedBox(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return SlideTransition(
+          position: Tween<Offset>(begin: const Offset(0, 1), end: Offset.zero)
+              .animate(CurvedAnimation(parent: anim1, curve: Curves.easeOutCubic)),
+          child: const _AboutPopup(),
+        );
+      },
     );
   }
 
@@ -1043,4 +1060,502 @@ class _SettingsItem {
   final VoidCallback onTap;
 
   _SettingsItem(this.icon, this.label, this.onTap);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ABOUT POPUP — Developer Info + Affiliated Team
+// ═══════════════════════════════════════════════════════════════
+
+class _AboutPopup extends StatelessWidget {
+  const _AboutPopup();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 60),
+        constraints: const BoxConstraints(maxWidth: 380),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1E1B2E), Color(0xFF0D0B14)],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFF3D3557).withOpacity(0.6)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF9D4EDD).withOpacity(0.15),
+              blurRadius: 40,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Material(
+            color: Colors.transparent,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // ── Top gradient bar ──
+                  Container(
+                    height: 6,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // ── Affiliated Team Button ──
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: GestureDetector(
+                      onTap: () => _showAffiliatedTeam(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                          ),
+                          borderRadius: BorderRadius.circular(30),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF9D4EDD).withOpacity(0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.groups_rounded, color: Colors.white, size: 20),
+                            SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                'Project Supervision',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // ── "Developed & Managed by" ──
+                  const Text(
+                    'Developed & Managed by',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Color(0xFF9D4EDD),
+                      fontWeight: FontWeight.w500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // ── Three Developer Photos ──
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Expanded(child: _buildDeveloperAvatar('Muhammad\nMuneeb', 'M', imagePath: 'assets/images/Muneeb_logo_2.JPG')),
+                        Expanded(child: _buildDeveloperAvatar('Muhammad\nMashhad', 'M')),
+                        Expanded(child: _buildDeveloperAvatar('Muhammad\nNuman', 'N')),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Info Rows ──
+                  _buildInfoDivider(),
+                  _buildInfoRow('Batch', 'Fall 2022 (8th Semester)'),
+                  _buildInfoDivider(),
+                  _buildInfoRow('Comsian', 'CUI Sahiwal'),
+                  _buildInfoDivider(),
+                  _buildInfoRow('Department', 'of Computer Science'),
+                  _buildInfoDivider(),
+
+                  const SizedBox(height: 24),
+
+                  // ── Last Updated Badge ──
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 32),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF9D4EDD).withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFF9D4EDD).withOpacity(0.25)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Text(
+                          'SCHEDULE LAST UPDATED ON',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Color(0xFFB8A9C9),
+                            letterSpacing: 1.2,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '07:50 PM | ${DateTime.now().day.toString().padLeft(2, '0')}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().year}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF9D4EDD),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Version ──
+                  const Text(
+                    'Event Sphere v1.0.0',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF7A6B8F)),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Close Button ──
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 32),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2D2645),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Close',
+                          style: TextStyle(
+                            color: Color(0xFFB8A9C9),
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Bottom gradient bar ──
+                  Container(
+                    height: 4,
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildDeveloperAvatar(String name, String initial, {String? imagePath}) {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(3),
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)],
+            ),
+          ),
+          child: imagePath != null
+              ? ClipOval(
+                  child: SizedBox(
+                    width: 68,
+                    height: 68,
+                    child: Image.asset(
+                      imagePath,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                    ),
+                  ),
+                )
+              : CircleAvatar(
+                  radius: 34,
+                  backgroundColor: const Color(0xFF2D2645),
+                  child: Text(
+                    initial,
+                    style: const TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF9D4EDD),
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          name,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  static Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: TextSpan(
+          children: [
+            TextSpan(
+              text: '$label ',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF9D4EDD),
+              ),
+            ),
+            TextSpan(
+              text: value,
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildInfoDivider() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 60),
+      height: 1,
+      color: const Color(0xFF3D3557).withOpacity(0.4),
+    );
+  }
+
+  static void _showAffiliatedTeam(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Team',
+      barrierColor: Colors.black.withOpacity(0.7),
+      transitionDuration: const Duration(milliseconds: 350),
+      pageBuilder: (context, anim1, anim2) => const SizedBox(),
+      transitionBuilder: (context, anim1, anim2, child) {
+        return ScaleTransition(
+          scale: CurvedAnimation(parent: anim1, curve: Curves.easeOutBack),
+          child: const _AffiliatedTeamPopup(),
+        );
+      },
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// AFFILIATED TEAM POPUP — Team member cards
+// ═══════════════════════════════════════════════════════════════
+
+class _AffiliatedTeamPopup extends StatelessWidget {
+  const _AffiliatedTeamPopup();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 80),
+        constraints: const BoxConstraints(maxWidth: 400),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF1E1B2E), Color(0xFF0D0B14)],
+          ),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: const Color(0xFF3D3557).withOpacity(0.6)),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF9D4EDD).withOpacity(0.12),
+              blurRadius: 40,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: Material(
+            color: Colors.transparent,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 28, 16, 0),
+                    child: Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'Project Supervision',
+                            style: TextStyle(
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF9D4EDD),
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2D2645),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.close, color: Color(0xFFB8A9C9), size: 20),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ── Team Member 1 ──
+                  _buildTeamMemberCard(
+                    name: 'Mr. Muhammad Ahmad Farid',
+                    title: 'Supervisor | FYP Advisor',
+                    institution: 'CUI Sahiwal',
+                    photoPlaceholder: 'AF',
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ── Team Member 2 ──
+                  _buildTeamMemberCard(
+                    name: 'Mr. Ali Sher Kashif',
+                    title: 'Co-Supervisor | FYP Advisor',
+                    institution: 'CUI Sahiwal',
+                    photoPlaceholder: 'AK',
+                  ),
+
+                  const SizedBox(height: 24),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _buildTeamMemberCard({
+    required String name,
+    required String title,
+    required String institution,
+    required String photoPlaceholder,
+  }) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFF9D4EDD).withOpacity(0.15)),
+      ),
+      child: Column(
+        children: [
+          // Photo
+          Container(
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF9D4EDD), width: 2.5),
+            ),
+            child: CircleAvatar(
+              radius: 42,
+              backgroundColor: const Color(0xFF2D2645),
+              // TODO: Replace with AssetImage or NetworkImage
+              child: Text(
+                photoPlaceholder,
+                style: const TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF9D4EDD),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          // Name
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+
+          // Title/Role
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFF9D4EDD),
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+
+          // Institution
+          Text(
+            institution,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Color(0xFFB8A9C9),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 }

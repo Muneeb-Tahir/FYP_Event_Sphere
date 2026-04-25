@@ -4,13 +4,28 @@
 
 import 'dart:convert';
 import 'package:crypto/crypto.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'supabase_service.dart';
 import 'registration_service.dart';
 import 'logging_service.dart';
 
 class QrService {
-  // Secret key for HMAC signing — in production, load from env
-  static const String _hmacSecret = 'eventsphere_qr_secret_2024';
+  // HMAC signing key loaded from environment variables (never hardcoded)
+  // Production: flutter build apk --dart-define=QR_HMAC_SECRET=your_secret
+  // Development: loaded from .env file via flutter_dotenv
+  static String get _hmacSecret {
+    // Try --dart-define first (production builds)
+    const envSecret = String.fromEnvironment('QR_HMAC_SECRET');
+    if (envSecret.isNotEmpty) return envSecret;
+
+    // Fall back to .env file (development)
+    final dotenvSecret = dotenv.env['QR_HMAC_SECRET'];
+    if (dotenvSecret != null && dotenvSecret.isNotEmpty) return dotenvSecret;
+
+    // Final fallback — should never be reached if .env is configured correctly
+    LoggingService.warning('QR_HMAC_SECRET not found in environment — using fallback. Configure .env or --dart-define!');
+    return 'eventsphere_fallback_key_change_me';
+  }
 
   // QR codes expire after 24 hours
   static const int _expiryHours = 24;

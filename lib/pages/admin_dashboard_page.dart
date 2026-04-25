@@ -373,10 +373,20 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           Row(
             children: [
               Expanded(child: _buildQuickActionButton(Icons.add_circle, 'Add Event', const Color(0xFF9D4EDD), () => Navigator.pushNamed(context, '/add-event'))),
-              const SizedBox(width: 12),
-              Expanded(child: _buildQuickActionButton(Icons.receipt_long, 'Add Expense', const Color(0xFF3B82F6), () => Navigator.pushNamed(context, '/expenses'))),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
+              Expanded(child: _buildQuickActionButton(Icons.receipt_long, 'Expenses', const Color(0xFF3B82F6), () => Navigator.pushNamed(context, '/expenses'))),
+              const SizedBox(width: 8),
               Expanded(child: _buildQuickActionButton(Icons.check_circle, 'Approvals', const Color(0xFF10B981), () => Navigator.pushNamed(context, '/event-approval'))),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(child: _buildQuickActionButton(Icons.how_to_reg, 'Attendance', const Color(0xFF22C55E), () => Navigator.pushNamed(context, '/event-attendance'))),
+              const SizedBox(width: 8),
+              Expanded(child: _buildQuickActionButton(Icons.qr_code_scanner, 'Scan QR', const Color(0xFFF59E0B), () => Navigator.pushNamed(context, '/qr-scan'))),
+              const SizedBox(width: 8),
+              Expanded(child: _buildQuickActionButton(Icons.bar_chart, 'Reports', const Color(0xFFEC4899), () => Navigator.pushNamed(context, '/reports'))),
             ],
           ),
         ],
@@ -388,18 +398,24 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
           color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color.withOpacity(0.3)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: color, size: 20),
-            const SizedBox(width: 8),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+            Icon(icon, color: color, size: 22),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

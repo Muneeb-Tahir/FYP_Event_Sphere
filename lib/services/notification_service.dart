@@ -330,7 +330,7 @@ class NotificationService {
       final response = await SupabaseService.client
           .from('users')
           .select('fcm_token')
-          .or('role.eq.admin,role.eq.superAdmin');
+          .or('role.eq.admin,role.eq.super_admin');
 
       final admins = response as List;
       LoggingService.info('Notifying ${admins.length} admins of pending event approval');

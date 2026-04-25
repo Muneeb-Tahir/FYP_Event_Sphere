@@ -103,11 +103,13 @@ class _BookmarksPageState extends ConsumerState<BookmarksPage> with TickerProvid
     });
 
     if (mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Bookmark removed'),
           backgroundColor: const Color(0xFF9D4EDD),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           action: SnackBarAction(
             label: 'Undo',

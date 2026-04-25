@@ -37,6 +37,24 @@ class RegistrationService {
       throw Exception('Already registered for this event');
     }
 
+    // Prevent registration for past events
+    try {
+      final eventData = await SupabaseService.client
+          .from('events')
+          .select('date')
+          .eq('id', eventId)
+          .maybeSingle();
+      if (eventData != null) {
+        final eventDate = DateTime.tryParse(eventData['date'] ?? '');
+        if (eventDate != null && eventDate.isBefore(DateTime.now())) {
+          throw Exception('Cannot register for a past event');
+        }
+      }
+    } catch (e) {
+      if (e.toString().contains('past event')) rethrow;
+      // If date check fails, allow registration to proceed (fail-open)
+    }
+
     await SupabaseService.registrations.insert({
       'user_id': userId,
       'event_id': eventId,

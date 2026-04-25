@@ -541,6 +541,7 @@ class _RegistrationPageState extends State<RegistrationPage> with TickerProvider
       controller: controller,
       keyboardType: keyboardType,
       validator: validator,
+      enableInteractiveSelection: true,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       cursorColor: Colors.white,
       decoration: InputDecoration(
@@ -583,6 +584,7 @@ class _RegistrationPageState extends State<RegistrationPage> with TickerProvider
       controller: passwordController,
       obscureText: _obscurePassword,
       validator: Validators.strongPassword,
+      enableInteractiveSelection: true,
       style: const TextStyle(color: Colors.white, fontSize: 15),
       cursorColor: Colors.white,
       decoration: InputDecoration(
@@ -595,9 +597,9 @@ class _RegistrationPageState extends State<RegistrationPage> with TickerProvider
         filled: true,
         fillColor: Colors.white.withOpacity(0.08),
         prefixIcon: Icon(Icons.lock_outline_rounded, color: Colors.white.withOpacity(0.7), size: 20),
-        suffixIcon: GestureDetector(
-          onTap: () => setState(() => _obscurePassword = !_obscurePassword),
-          child: Icon(
+        suffixIcon: IconButton(
+          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+          icon: Icon(
             _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
             color: Colors.white.withOpacity(0.7),
             size: 20,

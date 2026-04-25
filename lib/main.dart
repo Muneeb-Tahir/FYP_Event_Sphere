@@ -33,6 +33,7 @@ import 'pages/change_password_page.dart';
 import 'pages/account_settings_page.dart';
 import 'pages/global_search_page.dart';
 import 'pages/attended_events_page.dart';
+import 'pages/event_attendance_list_page.dart';
 import 'pages/landing_page.dart';
 import 'pages/welcome_screen.dart';
 import 'pages/edit_profile_page.dart';
@@ -203,6 +204,8 @@ class _EventManagementAppState extends State<EventManagementApp> {
         return const EventApprovalPage();
       case '/admin-dashboard':
         return const AdminDashboardPage();
+      case '/event-attendance':
+        return const EventAttendanceListPage();
       case '/reports':
         return const ReportsPage();
       case '/faq':

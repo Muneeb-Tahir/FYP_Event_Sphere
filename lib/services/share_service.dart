@@ -1,34 +1,42 @@
 // lib/services/share_service.dart
-// Event sharing functionality - supports multiple platforms
+// Event sharing with native OS share sheet + social platform options
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/event.dart';
 
 class ShareService {
   /// Generate shareable event URL
   static String generateEventUrl(String eventId) {
-    // In production, this would be your actual domain
     return 'https://eventsphere.app/event/$eventId';
   }
 
   /// Generate share text for an event
   static String generateShareText(Event event) {
     final dateStr = _formatDate(event.date);
-    return '''
-🎉 Check out this event!
+    return '🎉 Check out this event!\n\n'
+        '📌 ${event.title}\n'
+        '📅 $dateStr\n'
+        '📍 ${event.venue}\n\n'
+        '${event.description.length > 100 ? '${event.description.substring(0, 100)}...' : event.description}\n\n'
+        '🔗 ${generateEventUrl(event.id)}\n\n'
+        '#EventSphere #CampusEvents';
+  }
 
-📌 ${event.title}
-📅 $dateStr
-📍 ${event.venue}
-
-${event.description.length > 100 ? '${event.description.substring(0, 100)}...' : event.description}
-
-🔗 ${generateEventUrl(event.id)}
-
-#EventSphere #CampusEvents
-''';
+  /// Native share via OS share sheet (primary method)
+  static Future<void> nativeShare(BuildContext context, Event event) async {
+    final text = generateShareText(event);
+    try {
+      await Share.share(text, subject: 'Check out: ${event.title}');
+    } catch (e) {
+      // Fallback to clipboard
+      if (context.mounted) {
+        await copyShareText(context, event);
+      }
+    }
   }
 
   /// Copy event link to clipboard
@@ -37,6 +45,7 @@ ${event.description.length > 100 ? '${event.description.substring(0, 100)}...' :
     await Clipboard.setData(ClipboardData(text: url));
 
     if (context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -48,6 +57,7 @@ ${event.description.length > 100 ? '${event.description.substring(0, 100)}...' :
           ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
         ),
       );
     }
@@ -59,6 +69,7 @@ ${event.description.length > 100 ? '${event.description.substring(0, 100)}...' :
     await Clipboard.setData(ClipboardData(text: text));
 
     if (context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Row(
@@ -70,12 +81,13 @@ ${event.description.length > 100 ? '${event.description.substring(0, 100)}...' :
           ),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
         ),
       );
     }
   }
 
-  /// Share to WhatsApp (opens WhatsApp with pre-filled text)
+  /// Share to WhatsApp
   static String getWhatsAppShareUrl(Event event) {
     final text = Uri.encodeComponent(generateShareText(event));
     return 'https://wa.me/?text=$text';
@@ -144,7 +156,7 @@ class ShareBottomSheet extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+        color: isDark ? const Color(0xFF1E1B2E) : Colors.white,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
@@ -182,7 +194,42 @@ class ShareBottomSheet extends StatelessWidget {
           ),
           const SizedBox(height: 24),
 
-          // Share options grid
+          // Native Share button (primary — large, prominent)
+          if (!kIsWeb) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  ShareService.nativeShare(context, event);
+                },
+                icon: const Icon(Icons.share_rounded, color: Colors.white),
+                label: const Text(
+                  'Share via Apps',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF9D4EDD),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              children: [
+                Expanded(child: Divider(color: isDark ? const Color(0xFF3D3557) : Colors.grey[300])),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('or share directly', style: TextStyle(color: isDark ? const Color(0xFFB8A9C9) : Colors.grey, fontSize: 12)),
+                ),
+                Expanded(child: Divider(color: isDark ? const Color(0xFF3D3557) : Colors.grey[300])),
+              ],
+            ),
+            const SizedBox(height: 20),
+          ],
+
+          // Social platform options grid
           Wrap(
             spacing: 20,
             runSpacing: 20,
@@ -260,10 +307,11 @@ class ShareBottomSheet extends StatelessWidget {
                 ShareService.copyShareText(context, event);
                 Navigator.pop(context);
               },
-              icon: const Icon(Icons.content_copy_rounded),
-              label: const Text('Copy Full Share Text'),
+              icon: Icon(Icons.content_copy_rounded, color: isDark ? const Color(0xFFB8A9C9) : null),
+              label: Text('Copy Full Share Text', style: TextStyle(color: isDark ? Colors.white : null)),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
+                side: BorderSide(color: isDark ? const Color(0xFF3D3557) : Colors.grey.shade300),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -316,13 +364,13 @@ class ShareBottomSheet extends StatelessWidget {
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
-        // Fallback: copy URL to clipboard
         Clipboard.setData(ClipboardData(text: url));
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Could not open app. Link copied to clipboard.'),
               behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 3),
             ),
           );
         }
@@ -334,6 +382,7 @@ class ShareBottomSheet extends StatelessWidget {
           const SnackBar(
             content: Text('Link copied to clipboard.'),
             behavior: SnackBarBehavior.floating,
+            duration: Duration(seconds: 3),
           ),
         );
       }

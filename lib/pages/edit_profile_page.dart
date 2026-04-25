@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/auth_service.dart';
 import '../services/storage_service.dart';
+import '../services/logging_service.dart';
 import '../providers/auth_provider.dart';
 import '../constants/app_theme.dart';
 import '../utils/sanitizer.dart';
@@ -140,6 +141,18 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         'profileImageUrl': finalImageUrl,
       });
 
+      // Refresh Riverpod auth state so all pages get the updated user data immediately
+      await ref.read(authProvider.notifier).refreshUser();
+
+      // Evict old cached image so the new profile image displays without relaunch
+      if (_profileImageUrl != null && _profileImageUrl != finalImageUrl) {
+        try {
+          await CachedNetworkImage.evictFromCache(_profileImageUrl!);
+        } catch (_) {
+          // Eviction is best-effort
+        }
+      }
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated successfully'), backgroundColor: Colors.green),
@@ -147,14 +160,19 @@ class _EditProfilePageState extends ConsumerState<EditProfilePage> {
         Navigator.pop(context, true); // Return true to indicate success
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-      );
+      LoggingService.error('Edit profile save failed', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+        );
+      }
     }
-    setState(() {
-      loading = false;
-      _uploadingImage = false;
-    });
+    if (mounted) {
+      setState(() {
+        loading = false;
+        _uploadingImage = false;
+      });
+    }
   }
 
   void _showImageSourcePicker() {
