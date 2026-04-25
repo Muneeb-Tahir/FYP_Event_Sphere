@@ -65,15 +65,26 @@ class SocietyService {
   static Future<List<Society>> getAllSocieties() async {
     final data = await SupabaseService.client
         .from('societies')
-        .select()
+        .select('*, society_members(count)')
         .order('name');
 
-    List<Society> societies = [];
-    for (var item in data) {
-      final count = await getMemberCount(item['id']);
-      societies.add(Society.fromMap(item, members: count));
+    return (data as List).map((item) {
+      final count = _extractCount(item);
+      return Society.fromMap(item, members: count);
+    }).toList();
+  }
+
+  /// Extract member count from joined count query result
+  static int _extractCount(Map<String, dynamic> item) {
+    try {
+      final members = item['society_members'];
+      if (members is List && members.isNotEmpty) {
+        return members[0]['count'] as int? ?? 0;
+      }
+      return 0;
+    } catch (_) {
+      return 0;
     }
-    return societies;
   }
 
   // ===================== GET SOCIETY BY ID =====================
@@ -150,16 +161,14 @@ class SocietyService {
   static Future<List<Society>> getSocietiesByPresident(String presidentId) async {
     final data = await SupabaseService.client
         .from('societies')
-        .select()
+        .select('*, society_members(count)')
         .eq('president_id', presidentId)
         .order('name');
 
-    List<Society> societies = [];
-    for (var item in data) {
-      final count = await getMemberCount(item['id']);
-      societies.add(Society.fromMap(item, members: count));
-    }
-    return societies;
+    return (data as List).map((item) {
+      final count = _extractCount(item);
+      return Society.fromMap(item, members: count);
+    }).toList();
   }
 
   // ===================== MEMBER MANAGEMENT =====================
@@ -309,16 +318,14 @@ class SocietyService {
 
       final societies = await SupabaseService.client
           .from('societies')
-          .select()
+          .select('*, society_members(count)')
           .inFilter('id', societyIds)
           .order('name');
 
-      List<Society> result = [];
-      for (var item in societies) {
-        final count = await getMemberCount(item['id']);
-        result.add(Society.fromMap(item, members: count));
-      }
-      return result;
+      return (societies as List).map((item) {
+        final count = _extractCount(item);
+        return Society.fromMap(item, members: count);
+      }).toList();
     } catch (e) {
       return [];
     }

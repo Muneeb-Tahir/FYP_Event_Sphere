@@ -37,6 +37,12 @@ class AuthService {
     String name, {
     String? gender,
   }) async {
+    // Sign out any existing session first to prevent session bleed
+    try {
+      await _client.auth.signOut();
+      _currentAppUser = null;
+    } catch (_) {}
+
     // Sign up with Supabase Auth
     final response = await _client.auth.signUp(
       email: email,
@@ -69,8 +75,12 @@ class AuthService {
       LoggingService.warning('Profile creation note: $e');
     }
 
-    // Load the user profile
-    await _loadUserProfile(response.user!.id);
+    // Sign out after registration — user must log in manually
+    // This prevents session bleed where new account inherits old session
+    try {
+      await _client.auth.signOut();
+      _currentAppUser = null;
+    } catch (_) {}
   }
 
 
@@ -151,6 +161,16 @@ class AuthService {
     // Verify current password by re-authenticating
     final user = SupabaseService.currentUser;
     if (user == null) throw Exception('Not logged in');
+
+    // Re-authenticate to verify current password
+    try {
+      await _client.auth.signInWithPassword(
+        email: user.email!,
+        password: currentPassword,
+      );
+    } on AuthException catch (_) {
+      throw Exception('Current password is incorrect');
+    }
 
     // Update password
     await _client.auth.updateUser(

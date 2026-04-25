@@ -5,11 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/user_service.dart';
 import '../services/role_service.dart';
-import '../services/auth_service.dart';
 import '../providers/auth_provider.dart';
 import '../constants/app_theme.dart';
 import '../constants/role_constants.dart';
-import '../models/user.dart';
 
 class UserManagementPage extends ConsumerStatefulWidget {
   const UserManagementPage({super.key});
@@ -115,7 +113,6 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
   }
 
   Future<void> _changeUserRole(UserInfo user) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Get roles that current user can assign
     final assignableRoles = _assignableRoles;
@@ -156,7 +153,6 @@ class _UserManagementPageState extends ConsumerState<UserManagementPage> {
   }
 
   Future<void> _deleteUser(UserInfo user) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     bool? confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

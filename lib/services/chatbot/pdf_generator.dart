@@ -10,6 +10,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import '../../models/event.dart';
 import '../resource_service.dart';
+import '../logging_service.dart';
 
 // Conditional imports for platform-specific functionality
 import 'web_download_stub.dart' if (dart.library.html) 'web_download_web.dart';
@@ -221,10 +222,10 @@ class ChatPdfGenerator {
               final response = await http.get(Uri.parse(resource.fileUrl));
               if (response.statusCode == 200) {
                 imageCache[resource.id] = response.bodyBytes;
-                print('Downloaded image: ${resource.title}');
+                LoggingService.debug('Downloaded image: ${resource.title}');
               }
             } catch (e) {
-              print('Failed to download image ${resource.title}: $e');
+              LoggingService.warning('Failed to download image ${resource.title}: $e');
             }
           }
         }
@@ -260,7 +261,7 @@ class ChatPdfGenerator {
       final bytes = await pdf.save();
       return await _shareFile(bytes, '${_sanitizeFilename(event.title)}_resources.pdf');
     } catch (e) {
-      print('Error generating resources PDF: $e');
+      LoggingService.error('Error generating resources PDF', e);
       return false;
     }
   }
@@ -271,18 +272,18 @@ class ChatPdfGenerator {
     required List<EventResource> resources,
   }) async {
     try {
-      print('Generating PDFs for: ${event.title}');
+      LoggingService.info('Generating PDFs for: ${event.title}');
 
       // Generate details PDF first
       bool detailsSuccess = await generateEventDetailPdf(event: event);
-      print('Details PDF result: $detailsSuccess');
+      LoggingService.debug('Details PDF result: $detailsSuccess');
 
       // Generate resources - try PDF first, fall back to ZIP
       bool resourcesSuccess = true;
       String resourcesType = 'none';
 
       if (resources.isNotEmpty) {
-        print('Generating resources for ${resources.length} items...');
+        LoggingService.info('Generating resources for ${resources.length} items...');
 
         // Try PDF first
         resourcesSuccess = await generateEventResourcesPdf(
@@ -292,16 +293,16 @@ class ChatPdfGenerator {
 
         if (resourcesSuccess) {
           resourcesType = 'pdf';
-          print('Resources PDF generated successfully');
+          LoggingService.info('Resources PDF generated successfully');
         } else {
           // Fall back to ZIP
-          print('PDF failed, trying ZIP...');
+          LoggingService.debug('PDF failed, trying ZIP...');
           resourcesSuccess = await generateEventResourcesZip(
             event: event,
             resources: resources,
           );
           resourcesType = resourcesSuccess ? 'zip' : 'failed';
-          print('Resources ZIP result: $resourcesSuccess');
+          LoggingService.debug('Resources ZIP result: $resourcesSuccess');
         }
       }
 
@@ -311,7 +312,7 @@ class ChatPdfGenerator {
         'resourcesType': resourcesType,
       };
     } catch (e) {
-      print('Error generating past event PDFs: $e');
+      LoggingService.error('Error generating past event PDFs', e);
       return {'details': false, 'resources': false, 'resourcesType': 'failed'};
     }
   }
@@ -322,14 +323,14 @@ class ChatPdfGenerator {
     required List<EventResource> resources,
   }) async {
     try {
-      print('Creating ZIP archive for resources...');
+      LoggingService.info('Creating ZIP archive for resources...');
       final archive = Archive();
       int downloadedCount = 0;
 
       // Download and add each resource to the archive
       for (final resource in resources) {
         try {
-          print('Downloading: ${resource.title} from ${resource.fileUrl}');
+          LoggingService.debug('Downloading: ${resource.title} from ${resource.fileUrl}');
           final response = await http.get(Uri.parse(resource.fileUrl));
 
           if (response.statusCode == 200) {
@@ -344,17 +345,17 @@ class ChatPdfGenerator {
               response.bodyBytes,
             ));
             downloadedCount++;
-            print('Added to ZIP: $filename');
+            LoggingService.debug('Added to ZIP: $filename');
           } else {
-            print('Failed to download ${resource.title}: Status ${response.statusCode}');
+            LoggingService.warning('Failed to download ${resource.title}: Status ${response.statusCode}');
           }
         } catch (e) {
-          print('Error downloading ${resource.title}: $e');
+          LoggingService.error('Error downloading ${resource.title}', e);
         }
       }
 
       if (downloadedCount == 0) {
-        print('No resources could be downloaded');
+        LoggingService.warning('No resources could be downloaded');
         return false;
       }
 
@@ -379,7 +380,7 @@ class ChatPdfGenerator {
         '${_sanitizeFilename(event.title)}_resources.zip'
       );
     } catch (e) {
-      print('Error generating resources ZIP: $e');
+      LoggingService.error('Error generating resources ZIP', e);
       return false;
     }
   }
@@ -857,7 +858,7 @@ class ChatPdfGenerator {
         return await shareFileNative(bytes, filename);
       }
     } catch (e) {
-      print('Error sharing/downloading file: $e');
+      LoggingService.error('Error sharing/downloading file', e);
       return false;
     }
   }

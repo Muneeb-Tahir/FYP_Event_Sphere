@@ -16,6 +16,9 @@ class Event {
   final int currentAttendees; // Current registration count
   final DateTime? endDate; // Event end time (null = not specified)
   final DateTime? deletedAt; // Soft delete timestamp (null = active)
+  final bool isFeatured; // Whether event is manually featured by admin
+  final int likeCount; // Cached like count (updated by DB trigger)
+  final int dislikeCount; // Cached dislike count (updated by DB trigger)
 
   Event({
     required this.id,
@@ -32,6 +35,9 @@ class Event {
     this.currentAttendees = 0,
     this.endDate,
     this.deletedAt,
+    this.isFeatured = false,
+    this.likeCount = 0,
+    this.dislikeCount = 0,
   });
 
   // Check if event is soft-deleted
@@ -65,6 +71,9 @@ class Event {
     int? currentAttendees,
     DateTime? endDate,
     DateTime? deletedAt,
+    bool? isFeatured,
+    int? likeCount,
+    int? dislikeCount,
   }) {
     return Event(
       id: id ?? this.id,
@@ -81,6 +90,9 @@ class Event {
       currentAttendees: currentAttendees ?? this.currentAttendees,
       endDate: endDate ?? this.endDate,
       deletedAt: deletedAt ?? this.deletedAt,
+      isFeatured: isFeatured ?? this.isFeatured,
+      likeCount: likeCount ?? this.likeCount,
+      dislikeCount: dislikeCount ?? this.dislikeCount,
     );
   }
 
@@ -101,17 +113,20 @@ class Event {
       'current_attendees': currentAttendees,
       'end_date': endDate?.toIso8601String(),
       'deleted_at': deletedAt?.toIso8601String(),
+      'is_featured': isFeatured,
+      'like_count': likeCount,
+      'dislike_count': dislikeCount,
     };
   }
 
   /// Create Event from Map (for caching/database)
   factory Event.fromMap(Map<String, dynamic> map) {
     return Event(
-      id: map['id'],
-      title: map['title'],
-      description: map['description'],
-      date: DateTime.parse(map['date']),
-      venue: map['venue'],
+      id: map['id'] ?? '',
+      title: map['title'] ?? '',
+      description: map['description'] ?? '',
+      date: DateTime.tryParse(map['date'] ?? '') ?? DateTime.now(),
+      venue: map['venue'] ?? '',
       societyId: map['society_id'] ?? '',
       createdBy: map['created_by'] ?? '',
       approvalStatus: map['approval_status'] ?? 'pending',
@@ -119,8 +134,11 @@ class Event {
       imageUrl: map['image_url'],
       maxAttendees: map['max_attendees'],
       currentAttendees: map['current_attendees'] ?? 0,
-      endDate: map['end_date'] != null ? DateTime.parse(map['end_date']) : null,
-      deletedAt: map['deleted_at'] != null ? DateTime.parse(map['deleted_at']) : null,
+      endDate: map['end_date'] != null ? DateTime.tryParse(map['end_date']) : null,
+      deletedAt: map['deleted_at'] != null ? DateTime.tryParse(map['deleted_at']) : null,
+      isFeatured: map['is_featured'] ?? false,
+      likeCount: map['like_count'] ?? 0,
+      dislikeCount: map['dislike_count'] ?? 0,
     );
   }
 }

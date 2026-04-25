@@ -54,7 +54,6 @@ class _ResourcesPageState extends ConsumerState<ResourcesPage> {
   }
 
   void _showAddResourceDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     showModalBottomSheet(
       context: context,
@@ -96,7 +95,6 @@ class _ResourcesPageState extends ConsumerState<ResourcesPage> {
   }
 
   void _showAddLinkDialog() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleController = TextEditingController();
     final urlController = TextEditingController();
     final descController = TextEditingController();

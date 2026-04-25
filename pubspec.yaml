@@ -16,6 +16,8 @@ dependencies:
 
   # UI and features
   qr_flutter: ^4.1.0          # For QR code generation
+  mobile_scanner: ^5.1.1       # Camera-based QR scanning on mobile
+  crypto: ^3.0.3               # HMAC signature for QR security
   table_calendar: ^3.0.9      # For calendar view
   smooth_page_indicator: ^1.1.0
   google_fonts: ^6.0.0
@@ -96,6 +98,7 @@ flutter:
 
   assets:
     - assets/images/
+    - .env
     # NOTE: .env is loaded at runtime via flutter_dotenv for development.
     # For production builds, use: flutter build apk --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...
 

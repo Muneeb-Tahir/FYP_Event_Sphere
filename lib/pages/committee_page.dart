@@ -66,7 +66,6 @@ class _CommitteePageState extends ConsumerState<CommitteePage> {
   }
 
   void _showEditMemberDialog(CommitteeMember member) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     String selectedRole = member.role;
     final responsibilitiesController = TextEditingController(text: member.responsibilities);
 

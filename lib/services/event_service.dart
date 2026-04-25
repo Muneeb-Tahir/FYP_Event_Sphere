@@ -5,7 +5,6 @@ import '../models/event.dart';
 import 'supabase_service.dart';
 import 'cache_service.dart';
 import 'email_service.dart';
-import 'logging_service.dart';
 import '../utils/pagination.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
@@ -96,7 +95,11 @@ class EventService {
         .from('events')
         .stream(primaryKey: ['id'])
         .order('date', ascending: true)
-        .map((data) => data.map((e) => _mapToEvent(e)).toList());
+        .map((data) {
+          // Filter out soft-deleted events client-side
+          final filtered = data.where((e) => e['deleted_at'] == null).toList();
+          return filtered.map((e) => _mapToEvent(e)).toList();
+        });
   }
 
   // ------------------------- GET APPROVED EVENTS -------------------------
@@ -125,7 +128,11 @@ class EventService {
         .stream(primaryKey: ['id'])
         .eq('approval_status', 'pending')
         .order('date', ascending: true)
-        .map((data) => data.map((e) => _mapToEvent(e)).toList());
+        .map((data) {
+          // Filter out soft-deleted events client-side
+          final filtered = data.where((e) => e['deleted_at'] == null).toList();
+          return filtered.map((e) => _mapToEvent(e)).toList();
+        });
   }
 
   // ------------------------- GET EVENTS BY CATEGORY -------------------------
@@ -142,7 +149,7 @@ class EventService {
 
   // ------------------------- CREATE EVENT -------------------------
   static Future<void> createEvent(Event event) async {
-    await SupabaseService.events.insert({
+    final data = <String, dynamic>{
       'id': event.id,
       'title': event.title,
       'description': event.description,
@@ -155,9 +162,15 @@ class EventService {
       'image_url': event.imageUrl,
       'max_attendees': event.maxAttendees,
       'current_attendees': 0,
-      'end_date': event.endDate?.toIso8601String(),
       'created_at': DateTime.now().toIso8601String(),
-    });
+    };
+
+    // Only include optional columns if they have non-default values
+    // (prevents errors if columns haven't been added to DB yet)
+    if (event.endDate != null) data['end_date'] = event.endDate!.toIso8601String();
+    if (event.isFeatured) data['is_featured'] = true;
+
+    await SupabaseService.events.insert(data);
   }
 
   // ------------------------- UPDATE EVENT -------------------------
@@ -172,6 +185,7 @@ class EventService {
     if (data['approvalStatus'] != null) updateData['approval_status'] = data['approvalStatus'];
     if (data.containsKey('image_url')) updateData['image_url'] = data['image_url'];
     if (data['end_date'] != null) updateData['end_date'] = (data['end_date'] as DateTime).toIso8601String();
+    if (data.containsKey('is_featured')) updateData['is_featured'] = data['is_featured'];
 
     updateData['updated_at'] = DateTime.now().toIso8601String();
 
@@ -307,6 +321,9 @@ class EventService {
       currentAttendees: data['current_attendees'] ?? 0,
       endDate: data['end_date'] != null ? DateTime.tryParse(data['end_date']) : null,
       deletedAt: data['deleted_at'] != null ? DateTime.tryParse(data['deleted_at']) : null,
+      isFeatured: data['is_featured'] ?? false,
+      likeCount: data['like_count'] ?? 0,
+      dislikeCount: data['dislike_count'] ?? 0,
     );
   }
 }

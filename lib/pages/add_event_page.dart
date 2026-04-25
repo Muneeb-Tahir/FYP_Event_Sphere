@@ -35,6 +35,7 @@ class _AddEventPageState extends ConsumerState<AddEventPage> {
   String selectedCategory = 'Tech';
   bool loading = false;
   bool unlimitedCapacity = true;
+  bool _isFeatured = false; // Admin-only: mark event as featured
 
   XFile? _selectedImage;
   Uint8List? _imageBytes;
@@ -165,6 +166,7 @@ class _AddEventPageState extends ConsumerState<AddEventPage> {
         category: selectedCategory,
         imageUrl: imageUrl,
         maxAttendees: unlimitedCapacity ? null : int.tryParse(capacityController.text),
+        isFeatured: _isFeatured,
       ));
 
       if (mounted) {
@@ -327,6 +329,47 @@ class _AddEventPageState extends ConsumerState<AddEventPage> {
                   ],
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // Featured toggle (admin only)
+              if (_canSelectAnySociety) ...[
+                _label('Featured', Icons.star, isDark),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1B2E),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _isFeatured ? const Color(0xFFF59E0B).withOpacity(0.5) : const Color(0xFF3D3557).withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.star_rounded, color: _isFeatured ? const Color(0xFFF59E0B) : const Color(0xFFB8A9C9), size: 22),
+                          const SizedBox(width: 10),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Mark as Featured', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+                              Text(
+                                _isFeatured ? 'Will appear in the Featured carousel' : 'Show in regular event listing',
+                                style: const TextStyle(color: Color(0xFFB8A9C9), fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      Switch(
+                        value: _isFeatured,
+                        onChanged: (v) => setState(() => _isFeatured = v),
+                        activeColor: const Color(0xFFF59E0B),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 32),
 
               SizedBox(

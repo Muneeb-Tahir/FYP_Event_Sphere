@@ -95,7 +95,7 @@ class LoggingService {
   }
 
   /// Log database operations
-  static void database(String operation, [String? table, int? count]) {
+  static void database(String operation, String? table, {int? count}) {
     final tableStr = table != null ? ' on $table' : '';
     final countStr = count != null ? ' ($count rows)' : '';
     _logger.d('DB: $operation$tableStr$countStr');

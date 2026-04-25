@@ -15,7 +15,6 @@ class ReportsPage extends StatefulWidget {
 
 class _ReportsPageState extends State<ReportsPage> {
   List<EventReport> _reports = [];
-  DashboardStats? _stats;
   bool _isLoading = true;
   String? _error;
 
@@ -41,7 +40,7 @@ class _ReportsPageState extends State<ReportsPage> {
       if (mounted) {
         setState(() {
           _reports = results[0] as List<EventReport>;
-          _stats = results[1] as DashboardStats;
+          // DashboardStats available as results[1] if needed
           _isLoading = false;
         });
       }

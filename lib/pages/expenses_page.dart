@@ -74,13 +74,11 @@ class _ExpensesPageRedesignedState extends ConsumerState<ExpensesPageRedesigned>
   }
 
   Future<void> _addExpense() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleController = TextEditingController();
     final amountController = TextEditingController();
     final descController = TextEditingController();
     String selectedCategory = 'Other';
     String? selectedEventId;
-    String? selectedEventName;
     final categories = ['Venue', 'Décor', 'Logistics', 'Printing', 'Food', 'Transport', 'Equipment', 'Refreshments', 'Other'];
 
     // Load events for dropdown
@@ -159,10 +157,6 @@ class _ExpensesPageRedesignedState extends ConsumerState<ExpensesPageRedesigned>
                   ],
                   onChanged: (val) => setDialogState(() {
                     selectedEventId = val;
-                    selectedEventName = events.firstWhere(
-                      (e) => e['eventId'] == val,
-                      orElse: () => {'title': 'No Event'},
-                    )['title'] as String?;
                   }),
                 ),
                 const SizedBox(height: 16),

@@ -79,7 +79,6 @@ class ChatbotService {
   // Store last context for follow-up questions
   static List<Event>? _lastEventList;
   static Event? _lastEvent;
-  static String? _lastIntent;
 
   // ============================================================================
   // MAIN ENTRY POINT
@@ -92,7 +91,6 @@ class ChatbotService {
 
     // Recognize intent
     final intent = IntentRecognizer.recognize(userMessage);
-    _lastIntent = intent.type;
 
     // Route to appropriate handler
     switch (intent.type) {

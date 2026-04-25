@@ -1,66 +1,10 @@
 // lib/services/cache_service.dart
 // Hive Local Cache for Offline Support
 
-import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'dart:async';
-
-class CachedEvent {
-  final String id;
-  final String title;
-  final String description;
-  final String date;
-  final String time;
-  final String location;
-  final String? imageUrl;
-  final String? category;
-  final String approvalStatus;
-  final String createdBy;
-  final DateTime cachedAt;
-
-  CachedEvent({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.date,
-    required this.time,
-    required this.location,
-    this.imageUrl,
-    this.category,
-    required this.approvalStatus,
-    required this.createdBy,
-    required this.cachedAt,
-  });
-
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'title': title,
-    'description': description,
-    'date': date,
-    'time': time,
-    'location': location,
-    'image_url': imageUrl,
-    'category': category,
-    'approval_status': approvalStatus,
-    'created_by': createdBy,
-    'cached_at': cachedAt.toIso8601String(),
-  };
-
-  factory CachedEvent.fromMap(Map<dynamic, dynamic> map) => CachedEvent(
-    id: map['id'] ?? '',
-    title: map['title'] ?? '',
-    description: map['description'] ?? '',
-    date: map['date'] ?? '',
-    time: map['time'] ?? '',
-    location: map['location'] ?? '',
-    imageUrl: map['image_url'],
-    category: map['category'],
-    approvalStatus: map['approval_status'] ?? 'pending',
-    createdBy: map['created_by'] ?? '',
-    cachedAt: DateTime.tryParse(map['cached_at'] ?? '') ?? DateTime.now(),
-  );
-}
+import 'logging_service.dart';
 
 class CacheService {
   static late Box<Map> _eventsBox;
@@ -89,9 +33,9 @@ class CacheService {
       // Initialize connectivity listener
       await _initConnectivity();
 
-      debugPrint('CacheService initialized successfully');
+      LoggingService.info('CacheService initialized successfully');
     } catch (e) {
-      debugPrint('CacheService init error: $e');
+      LoggingService.error('CacheService init error', e);
     }
   }
 
@@ -108,7 +52,7 @@ class CacheService {
   static void _updateConnectivity(List<ConnectivityResult> results) {
     _isOnline = results.isNotEmpty && !results.contains(ConnectivityResult.none);
     _onlineController.add(_isOnline);
-    debugPrint('Connectivity changed: ${_isOnline ? "Online" : "Offline"}');
+    LoggingService.debug('Connectivity changed: ${_isOnline ? "Online" : "Offline"}');
   }
 
   // ===================== CACHE EVENTS =====================
@@ -119,9 +63,9 @@ class CacheService {
         event['cached_at'] = DateTime.now().toIso8601String();
         await _eventsBox.put(id, event);
       }
-      debugPrint('Cached ${events.length} events');
+      LoggingService.debug('Cached ${events.length} events');
     } catch (e) {
-      debugPrint('Failed to cache events: $e');
+      LoggingService.error('Failed to cache events', e);
     }
   }
 
@@ -131,7 +75,7 @@ class CacheService {
       event['cached_at'] = DateTime.now().toIso8601String();
       await _eventsBox.put(id, event);
     } catch (e) {
-      debugPrint('Failed to cache event: $e');
+      LoggingService.error('Failed to cache event', e);
     }
   }
 
@@ -141,7 +85,7 @@ class CacheService {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     } catch (e) {
-      debugPrint('Failed to get cached events: $e');
+      LoggingService.error('Failed to get cached events', e);
       return [];
     }
   }
@@ -151,7 +95,7 @@ class CacheService {
       final event = _eventsBox.get(id);
       return event != null ? Map<String, dynamic>.from(event) : null;
     } catch (e) {
-      debugPrint('Failed to get cached event: $e');
+      LoggingService.error('Failed to get cached event', e);
       return null;
     }
   }
@@ -164,9 +108,9 @@ class CacheService {
         final id = bookmark['event_id'] ?? bookmark['id'];
         await _bookmarksBox.put(id, bookmark);
       }
-      debugPrint('Cached ${bookmarks.length} bookmarks');
+      LoggingService.debug('Cached ${bookmarks.length} bookmarks');
     } catch (e) {
-      debugPrint('Failed to cache bookmarks: $e');
+      LoggingService.error('Failed to cache bookmarks', e);
     }
   }
 
@@ -176,7 +120,7 @@ class CacheService {
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
     } catch (e) {
-      debugPrint('Failed to get cached bookmarks: $e');
+      LoggingService.error('Failed to get cached bookmarks', e);
       return [];
     }
   }
@@ -186,7 +130,7 @@ class CacheService {
       final id = bookmark['event_id'] ?? bookmark['id'];
       await _bookmarksBox.put(id, bookmark);
     } catch (e) {
-      debugPrint('Failed to add bookmark: $e');
+      LoggingService.error('Failed to add bookmark', e);
     }
   }
 
@@ -194,7 +138,7 @@ class CacheService {
     try {
       await _bookmarksBox.delete(eventId);
     } catch (e) {
-      debugPrint('Failed to remove bookmark: $e');
+      LoggingService.error('Failed to remove bookmark', e);
     }
   }
 
@@ -207,7 +151,7 @@ class CacheService {
     try {
       await _userBox.put('current_user', user);
     } catch (e) {
-      debugPrint('Failed to cache user: $e');
+      LoggingService.error('Failed to cache user', e);
     }
   }
 
@@ -216,7 +160,7 @@ class CacheService {
       final user = _userBox.get('current_user');
       return user != null ? Map<String, dynamic>.from(user) : null;
     } catch (e) {
-      debugPrint('Failed to get cached user: $e');
+      LoggingService.error('Failed to get cached user', e);
       return null;
     }
   }
@@ -240,7 +184,7 @@ class CacheService {
     await _bookmarksBox.clear();
     await _userBox.clear();
     await _settingsBox.clear();
-    debugPrint('All cache cleared');
+    LoggingService.info('All cache cleared');
   }
 
   // ===================== CACHE SIZE =====================

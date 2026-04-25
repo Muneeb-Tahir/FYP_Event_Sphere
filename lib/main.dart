@@ -127,6 +127,9 @@ class _EventManagementAppState extends State<EventManagementApp> {
         // Handle routes with arguments
         switch (settings.name) {
           case '/event-detail':
+            // Deep link format: eventsphere://event-detail?id=<eventId>
+            // When opened via share link, arguments contain the event UUID.
+            // ShareService generates links using this route.
             final eventId = settings.arguments as String;
             page = EventDetailPage(eventId: eventId);
             break;
@@ -140,8 +143,10 @@ class _EventManagementAppState extends State<EventManagementApp> {
             break;
           case '/registered-events':
             final user = AuthService.getCurrentUser();
-            page = user != null
-                ? RegisteredEventsPage(userId: user.id)
+            final supabaseUser = Supabase.instance.client.auth.currentUser;
+            final userId = user?.id ?? supabaseUser?.id;
+            page = userId != null
+                ? RegisteredEventsPage(userId: userId)
                 : const LoginPage();
             break;
           case '/add-event':

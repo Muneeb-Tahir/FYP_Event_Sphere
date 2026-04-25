@@ -20,7 +20,10 @@ import '../widgets/star_rating.dart';
 import '../services/reminder_service.dart';
 import '../services/waitlist_service.dart';
 import '../services/supabase_service.dart';
+import '../services/logging_service.dart';
 import 'qr_generate_page.dart';
+import 'qr_scan_page.dart';
+import 'attendance_page.dart';
 import 'edit_event_page.dart';
 import 'photo_gallery_page.dart';
 import 'committee_page.dart';
@@ -639,11 +642,11 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
 
   Future<List<Map<String, dynamic>>> _getParticipants() async {
     if (event == null) {
-      print('Event is null, returning empty');
+      LoggingService.debug('Event is null, returning empty');
       return [];
     }
     try {
-      print('Fetching participants for event ID: ${event!.id}');
+      LoggingService.debug('Fetching participants for event ID: ${event!.id}');
 
       // Get all registrations for this event
       final registrations = await SupabaseService.client
@@ -651,20 +654,20 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           .select('user_id')
           .eq('event_id', event!.id);
 
-      print('Registrations found: ${(registrations as List).length}');
+      LoggingService.debug('Registrations found: ${(registrations as List).length}');
 
       if (registrations.isEmpty) return [];
 
       // Get user details for each registration
       final userIds = registrations.map((e) => e['user_id'] as String).toList();
-      print('User IDs: $userIds');
+      LoggingService.debug('User IDs: $userIds');
 
       final users = await SupabaseService.client
           .from('users')
           .select('id, name, email, profile_image_url')
           .inFilter('id', userIds);
 
-      print('Users found: ${(users as List).length}');
+      LoggingService.debug('Users found: ${(users as List).length}');
 
       // Try to get privacy settings (may fail if column doesn't exist)
       Map<String, bool> showInListMap = {};
@@ -677,7 +680,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
           showInListMap[reg['user_id'] as String] = reg['show_in_list'] ?? true;
         }
       } catch (e) {
-        print('Privacy column may not exist: $e');
+        LoggingService.debug('Privacy column may not exist: $e');
         // Default all to visible if column doesn't exist
       }
 
@@ -694,7 +697,7 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
         };
       }).toList();
     } catch (e) {
-      print('Error fetching participants: $e');
+      LoggingService.error('Error fetching participants', e);
       return [];
     }
   }
@@ -1152,6 +1155,52 @@ class _EventDetailPageState extends ConsumerState<EventDetailPage> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                         ),
                       ),
+                    ),
+                  ],
+
+                  // Attendance Button (for organizers/admins)
+                  if (currentUser?.id == event!.createdBy || currentUser?.role == UserRole.admin || currentUser?.role == UserRole.superAdmin || currentUser?.role == UserRole.president || currentUser?.role == UserRole.vicePresident) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        // View Attendance
+                        Expanded(
+                          child: SizedBox(
+                            height: 56,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => AttendancePage(event: event!)),
+                              ),
+                              icon: const Icon(Icons.how_to_reg, color: Colors.green),
+                              label: const Text('Attendance', style: TextStyle(fontSize: 13, color: Colors.green)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.green),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Scan QR
+                        Expanded(
+                          child: SizedBox(
+                            height: 56,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (_) => const QrScanPage()),
+                              ),
+                              icon: const Icon(Icons.qr_code_scanner, color: Color(0xFF9D4EDD)),
+                              label: const Text('Scan QR', style: TextStyle(fontSize: 13, color: Color(0xFF9D4EDD))),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Color(0xFF9D4EDD)),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
 

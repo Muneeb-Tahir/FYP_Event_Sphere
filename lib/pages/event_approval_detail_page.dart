@@ -7,6 +7,7 @@ import '../models/event.dart';
 import '../services/event_service.dart';
 import '../services/supabase_service.dart';
 import '../services/notification_service.dart';
+import '../services/logging_service.dart';
 import '../constants/app_theme.dart';
 import '../utils/haptic_feedback.dart';
 
@@ -40,7 +41,7 @@ class _EventApprovalDetailPageState extends State<EventApprovalDetailPage> {
         setState(() => _creatorName = user['name'] ?? 'Unknown');
       }
     } catch (e) {
-      debugPrint('Error loading creator name: $e');
+      LoggingService.error('Error loading creator name', e);
     }
   }
 
@@ -62,13 +63,13 @@ class _EventApprovalDetailPageState extends State<EventApprovalDetailPage> {
         if (society != null) societyName = society['name'] ?? 'Event Sphere';
       } catch (_) {}
 
-      debugPrint('📬 Sending new event notification for: ${widget.event.title}');
+      LoggingService.info('Sending new event notification for: ${widget.event.title}');
       await NotificationService.notifyNewEvent(
         eventName: widget.event.title,
         societyName: societyName,
         eventId: widget.event.id,
       );
-      debugPrint('📬 Notification sent!');
+      LoggingService.info('Notification sent!');
 
       if (mounted) {
         HapticUtils.success();

@@ -3,6 +3,7 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import '../services/logging_service.dart';
 
 class ImageCompressor {
   // Maximum dimensions for different use cases
@@ -33,7 +34,7 @@ class ImageCompressor {
         quality: quality,
       ));
     } catch (e) {
-      print('Image compression failed: $e');
+      LoggingService.error('Image compression failed', e);
       return null;
     }
   }
@@ -133,7 +134,7 @@ Uint8List? _compressImage(_CompressParams params) {
     final compressed = img.encodeJpg(resized, quality: params.quality);
     return Uint8List.fromList(compressed);
   } catch (e) {
-    print('Compression error: $e');
+    debugPrint('Compression error: $e'); // Cannot use LoggingService in isolate
     return null;
   }
 }

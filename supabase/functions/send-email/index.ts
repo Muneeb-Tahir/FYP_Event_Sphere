@@ -12,8 +12,10 @@ interface EmailRequest {
   type?: string;
 }
 
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": SUPABASE_URL, // Restrict to project origin only
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 

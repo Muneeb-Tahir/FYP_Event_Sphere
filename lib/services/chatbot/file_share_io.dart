@@ -5,6 +5,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../logging_service.dart';
 
 Future<bool> shareFileNative(Uint8List bytes, String filename) async {
   try {
@@ -21,7 +22,7 @@ Future<bool> shareFileNative(Uint8List bytes, String filename) async {
 
     return true;
   } catch (e) {
-    print('Error sharing file: $e');
+    LoggingService.error('Error sharing file', e);
     return false;
   }
 }
@@ -57,7 +58,7 @@ Future<bool> shareMultipleFilesNative(
 
     return true;
   } catch (e) {
-    print('Error sharing multiple files: $e');
+    LoggingService.error('Error sharing multiple files', e);
     return false;
   }
 }

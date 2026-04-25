@@ -6,6 +6,7 @@ import '../supabase_service.dart';
 import '../auth_service.dart';
 import '../event_service.dart';
 import '../registration_service.dart';
+import '../logging_service.dart';
 import '../../models/event.dart';
 
 /// Handles all database queries for the chatbot
@@ -30,7 +31,7 @@ class ChatDatabaseHandler {
 
       return (data as List).map((e) => Event.fromMap(e)).toList();
     } catch (e) {
-      print('ChatDatabaseHandler.getCurrentEvents error: $e');
+      LoggingService.error('ChatDatabaseHandler.getCurrentEvents error', e);
       return [];
     }
   }
@@ -50,7 +51,7 @@ class ChatDatabaseHandler {
 
       return (data as List).map((e) => Event.fromMap(e)).toList();
     } catch (e) {
-      print('ChatDatabaseHandler.getPastEvents error: $e');
+      LoggingService.error('ChatDatabaseHandler.getPastEvents error', e);
       return [];
     }
   }
@@ -67,7 +68,7 @@ class ChatDatabaseHandler {
 
       return (data as List).map((e) => Event.fromMap(e)).toList();
     } catch (e) {
-      print('ChatDatabaseHandler.getAllEvents error: $e');
+      LoggingService.error('ChatDatabaseHandler.getAllEvents error', e);
       return [];
     }
   }
@@ -125,7 +126,7 @@ class ChatDatabaseHandler {
       final data = await builder.order('date', ascending: true).limit(10);
       return (data as List).map((e) => Event.fromMap(e)).toList();
     } catch (e) {
-      print('ChatDatabaseHandler.searchEvents error: $e');
+      LoggingService.error('ChatDatabaseHandler.searchEvents error', e);
       return [];
     }
   }

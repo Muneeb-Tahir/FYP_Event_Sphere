@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/society_service.dart';
 import '../services/user_service.dart';
-import '../services/auth_service.dart';
 import '../services/avatar_service.dart';
 import '../services/event_service.dart';
 import '../providers/auth_provider.dart';
@@ -187,7 +186,6 @@ class _SocietyDetailPageState extends ConsumerState<SocietyDetailPage> {
 
 
   Future<void> _changeMemberRole(SocietyMember member) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Determine current role based on societyRole field
     String currentRole = member.societyRole;
@@ -266,7 +264,6 @@ class _SocietyDetailPageState extends ConsumerState<SocietyDetailPage> {
 
 
   Future<void> _removeMember(SocietyMember member) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -295,7 +292,6 @@ class _SocietyDetailPageState extends ConsumerState<SocietyDetailPage> {
   Future<void> _deleteSelectedMembers() async {
     if (_selectedMemberIds.isEmpty) return;
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final count = _selectedMemberIds.length;
 
     final confirm = await showDialog<bool>(

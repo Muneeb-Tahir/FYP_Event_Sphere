@@ -8,9 +8,10 @@ import 'dart:async';
 
 class RegistrationService {
   // ------------------------- CHECK IF REGISTERED -------------------------
+  /// Synchronous stub — always returns false. Use [checkRegistration] instead.
+  @Deprecated('Use checkRegistration() for accurate results')
   static bool isRegistered(String userId, String eventId) {
-    // This is a synchronous check - for realtime use the stream version
-    return false; // Default false, actual check happens async
+    return false;
   }
 
   // ------------------------- CHECK REGISTRATION ASYNC -------------------------

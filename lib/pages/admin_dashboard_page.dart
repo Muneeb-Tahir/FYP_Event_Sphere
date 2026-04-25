@@ -26,7 +26,6 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   double _monthlyTotal = 0;
   double _annualTotal = 0;
   double _averagePerEvent = 0;
-  String _mostExpensiveEventName = '-';
   double _mostExpensiveEventAmount = 0;
 
   // Chart data
@@ -115,7 +114,6 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         _monthlyTotal = monthlyTotal;
         _annualTotal = annualTotal;
         _averagePerEvent = avgPerEvent;
-        _mostExpensiveEventName = mostExpensiveEventName;
         _mostExpensiveEventAmount = mostExpensiveEventAmount;
         _monthlyChartData = monthlyChartData;
         _categoryData = categoryChartData;

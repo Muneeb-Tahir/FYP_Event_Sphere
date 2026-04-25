@@ -29,7 +29,28 @@ class NotificationService {
 
   // ===================== INITIALIZE =====================
   static Future<void> initialize() async {
+    // Firebase push notifications only work on Android/iOS, skip on Web
+    if (identical(0, 0.0)) {
+      // This branch never runs — just a compile trick; use kIsWeb below
+    }
+
+    // Use Flutter's kIsWeb to detect web platform
     try {
+      const bool isWeb = bool.fromEnvironment('dart.library.html');
+      // Check if we're on a non-mobile platform
+      bool onMobile = false;
+      try {
+        onMobile = Platform.isAndroid || Platform.isIOS;
+      } catch (_) {
+        // Platform.isAndroid throws on web
+        onMobile = false;
+      }
+
+      if (!onMobile) {
+        LoggingService.info('NotificationService: Skipping Firebase init on Web/Desktop');
+        return;
+      }
+
       // Initialize Firebase
       await Firebase.initializeApp();
 
@@ -41,7 +62,7 @@ class NotificationService {
 
       // Get FCM token
       _fcmToken = await _messaging.getToken();
-      debugPrint('FCM Token: $_fcmToken');
+      LoggingService.debug('FCM Token: $_fcmToken');
 
       // Save token to database
       await _saveTokenToDatabase();
@@ -64,9 +85,9 @@ class NotificationService {
       // Subscribe to topics
       await subscribeToTopic('all_users');
 
-      debugPrint('NotificationService initialized successfully');
+      LoggingService.info('NotificationService initialized successfully');
     } catch (e) {
-      debugPrint('NotificationService init error: $e');
+      LoggingService.error('NotificationService init error', e);
     }
   }
 
@@ -81,7 +102,7 @@ class NotificationService {
       provisional: false,
       sound: true,
     );
-    debugPrint('Notification permission: ${settings.authorizationStatus}');
+    LoggingService.debug('Notification permission: ${settings.authorizationStatus}');
   }
 
   // ===================== INIT LOCAL NOTIFICATIONS =====================
@@ -101,7 +122,7 @@ class NotificationService {
     await _localNotifications.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (response) {
-        debugPrint('Local notification tapped: ${response.payload}');
+        LoggingService.debug('Local notification tapped: ${response.payload}');
       },
     );
 
@@ -121,7 +142,7 @@ class NotificationService {
 
   // ===================== HANDLE FOREGROUND MESSAGE =====================
   static void _handleForegroundMessage(RemoteMessage message) {
-    debugPrint('Foreground message: ${message.notification?.title}');
+    LoggingService.debug('Foreground message: ${message.notification?.title}');
 
     final notification = message.notification;
     if (notification != null) {
@@ -211,10 +232,10 @@ class NotificationService {
             .from('users')
             .update({'fcm_token': _fcmToken})
             .eq('id', userId);
-        debugPrint('FCM token saved to database');
+        LoggingService.debug('FCM token saved to database');
       }
     } catch (e) {
-      debugPrint('Failed to save FCM token: $e');
+      LoggingService.error('Failed to save FCM token', e);
     }
   }
 
@@ -222,9 +243,9 @@ class NotificationService {
   static Future<void> subscribeToTopic(String topic) async {
     try {
       await _messaging.subscribeToTopic(topic);
-      debugPrint('Subscribed to topic: $topic');
+      LoggingService.debug('Subscribed to topic: $topic');
     } catch (e) {
-      debugPrint('Failed to subscribe to topic: $e');
+      LoggingService.error('Failed to subscribe to topic', e);
     }
   }
 
@@ -232,9 +253,9 @@ class NotificationService {
   static Future<void> unsubscribeFromTopic(String topic) async {
     try {
       await _messaging.unsubscribeFromTopic(topic);
-      debugPrint('Unsubscribed from topic: $topic');
+      LoggingService.debug('Unsubscribed from topic: $topic');
     } catch (e) {
-      debugPrint('Failed to unsubscribe from topic: $e');
+      LoggingService.error('Failed to unsubscribe from topic', e);
     }
   }
 
@@ -248,7 +269,7 @@ class NotificationService {
     Map<String, String>? data,
   }) async {
     try {
-      debugPrint('🔔 Sending notification: title=$title, topic=$topic, userId=$userId');
+      LoggingService.debug('Sending notification: title=$title, topic=$topic, userId=$userId');
 
       final response = await SupabaseService.client.functions.invoke(
         'send-notification',
@@ -262,19 +283,17 @@ class NotificationService {
         },
       );
 
-      debugPrint('🔔 Response status: ${response.status}');
-      debugPrint('🔔 Response data: ${response.data}');
+      LoggingService.debug('Notification response: status=${response.status}, data=${response.data}');
 
       if (response.status == 200) {
-        debugPrint('✅ Notification sent successfully');
+        LoggingService.info('Notification sent successfully');
         return true;
       } else {
-        debugPrint('❌ Failed to send notification: ${response.data}');
+        LoggingService.warning('Failed to send notification: ${response.data}');
         return false;
       }
     } catch (e, stack) {
-      debugPrint('❌ Error sending notification: $e');
-      debugPrint('Stack trace: $stack');
+      LoggingService.error('Error sending notification', e, stack);
       return false;
     }
   }
@@ -287,7 +306,7 @@ class NotificationService {
   }) async {
     // Check if new event notifications are enabled in settings
     if (!SettingsService.notificationSettings.newEvents) {
-      debugPrint('🔕 New event notifications disabled in settings');
+      LoggingService.debug('New event notifications disabled in settings');
       return;
     }
 
@@ -314,7 +333,7 @@ class NotificationService {
           .or('role.eq.admin,role.eq.superAdmin');
 
       final admins = response as List;
-      debugPrint('📬 Notifying ${admins.length} admins of pending event approval');
+      LoggingService.info('Notifying ${admins.length} admins of pending event approval');
 
       // Send to each admin directly
       for (final admin in admins) {
@@ -329,7 +348,7 @@ class NotificationService {
         }
       }
     } catch (e) {
-      debugPrint('Error notifying admins: $e');
+      LoggingService.error('Error notifying admins', e);
     }
   }
 

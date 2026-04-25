@@ -6,11 +6,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../models/event.dart';
 import '../models/user.dart';
 import '../services/event_service.dart';
+import '../services/reaction_service.dart';
 import '../services/bookmark_service.dart';
-import '../services/auth_service.dart';
 import '../services/supabase_service.dart';
 import '../providers/auth_provider.dart';
-import '../constants/app_theme.dart';
 
 class EventsPage extends ConsumerStatefulWidget {
   const EventsPage({super.key});
@@ -20,13 +19,25 @@ class EventsPage extends ConsumerStatefulWidget {
 }
 
 class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStateMixin {
-  Set<String> _bookmarkedEventIds = {};
+  Map<String, ReactionType> _userReactions = {}; // eventId → like/dislike
+  Set<String> _bookmarkedEventIds = {}; // Track bookmarked events
   String? _userId;
 
   // Page controller for featured carousel
   late PageController _featuredPageController;
   int _currentFeaturedIndex = 0;
   Timer? _autoScrollTimer;
+
+  List<Event>? _events;
+  bool _isLoading = true;
+
+  StreamSubscription? _eventsSubscription;
+  StreamSubscription? _reactionsSubscription;
+
+  // Debounce & lock for reaction toggling
+  final Map<String, Timer> _reactionDebounceTimers = {};
+  final Set<String> _processingReactions = {};
+  Timer? _reloadDebounce;
 
   // Animation controllers
   late AnimationController _fadeController;
@@ -37,16 +48,13 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
   final List<_Particle> _particles = [];
   final math.Random _random = math.Random();
 
-  // Real-time subscription
-  dynamic _eventsSubscription;
-  List<Event>? _events;
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _initParticles();
     _featuredPageController = PageController(viewportFraction: 0.88);
+    _loadReactions();
     _loadBookmarks();
     _loadEvents();
     _setupRealTimeSubscription();
@@ -88,15 +96,27 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
     _particleController.dispose();
     _pulseController.dispose();
     _eventsSubscription?.cancel();
+    _reactionsSubscription?.cancel();
+    _reloadDebounce?.cancel();
+    for (final t in _reactionDebounceTimers.values) {
+      t.cancel();
+    }
     super.dispose();
   }
 
   void _startAutoScroll() {
     _autoScrollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
       if (_events != null && _events!.isNotEmpty && mounted) {
-        final featuredCount = _events!.take(5).length;
-        if (featuredCount > 1) {
-          int nextPage = (_currentFeaturedIndex + 1) % featuredCount;
+        // Only auto-scroll if the controller is actually attached to a PageView
+        if (!_featuredPageController.hasClients) return;
+
+        final now = DateTime.now();
+        final upcomingCount = _events!
+            .where((e) => e.date.isAfter(now) || e.date.isAtSameMomentAs(now))
+            .take(5)
+            .length;
+        if (upcomingCount > 1) {
+          int nextPage = (_currentFeaturedIndex + 1) % upcomingCount;
           _featuredPageController.animateToPage(
             nextPage,
             duration: const Duration(milliseconds: 600),
@@ -123,55 +143,161 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
     }
   }
 
+  /// Debounced reload — prevents rapid-fire reloads from real-time subscriptions
+  void _debouncedReload() {
+    // Skip reload if any reaction is still being processed
+    if (_processingReactions.isNotEmpty) return;
+
+    _reloadDebounce?.cancel();
+    _reloadDebounce = Timer(const Duration(milliseconds: 500), () {
+      if (mounted) _loadEvents();
+    });
+  }
+
   void _setupRealTimeSubscription() {
     _eventsSubscription = SupabaseService.client
         .from('events')
         .stream(primaryKey: ['id'])
         .listen((data) {
-          if (mounted) _loadEvents();
+          if (mounted) _debouncedReload();
+        });
+
+    _reactionsSubscription = SupabaseService.client
+        .from('event_reactions')
+        .stream(primaryKey: ['id'])
+        .listen((_) {
+          if (mounted) _debouncedReload();
         });
   }
 
-  void _loadBookmarks() {
+  void _loadReactions() {
     final user = ref.read(currentUserProvider);
     if (user != null) {
       _userId = user.id;
-      BookmarkService.getBookmarksStream(user.id).listen((ids) {
-        if (mounted) {
-          setState(() => _bookmarkedEventIds = ids.toSet());
-        }
-      });
+      _loadUserReactions();
     }
+  }
+
+  Future<void> _loadUserReactions() async {
+    if (_userId == null) return;
+    final reactions = await ReactionService.getUserReactions(_userId!);
+    if (mounted) {
+      setState(() => _userReactions = reactions);
+    }
+  }
+
+  Future<void> _loadBookmarks() async {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    try {
+      final bookmarks = await BookmarkService.getBookmarks(user.id);
+      if (mounted) {
+        setState(() => _bookmarkedEventIds = bookmarks.toSet());
+      }
+    } catch (_) {}
   }
 
   Future<void> _toggleBookmark(String eventId) async {
     if (_userId == null) return;
-
-    final isCurrentlyBookmarked = _bookmarkedEventIds.contains(eventId);
-
+    // Optimistic UI update
     setState(() {
-      if (isCurrentlyBookmarked) {
+      if (_bookmarkedEventIds.contains(eventId)) {
         _bookmarkedEventIds.remove(eventId);
       } else {
         _bookmarkedEventIds.add(eventId);
       }
     });
-
     try {
-      if (isCurrentlyBookmarked) {
-        await BookmarkService.removeBookmark(_userId!, eventId);
-      } else {
-        await BookmarkService.addBookmark(_userId!, eventId);
-      }
-    } catch (e) {
+      await BookmarkService.toggleBookmark(_userId!, eventId);
+    } catch (_) {
+      // Revert on error
       setState(() {
-        if (isCurrentlyBookmarked) {
-          _bookmarkedEventIds.add(eventId);
-        } else {
+        if (_bookmarkedEventIds.contains(eventId)) {
           _bookmarkedEventIds.remove(eventId);
+        } else {
+          _bookmarkedEventIds.add(eventId);
         }
       });
     }
+  }
+
+  Future<void> _toggleReaction(String eventId, ReactionType type) async {
+    if (_userId == null) return;
+
+    // Cancel any pending debounce for this event
+    _reactionDebounceTimers[eventId]?.cancel();
+
+    final previousReaction = _userReactions[eventId];
+
+    // 1. Optimistic UI update — reaction icon state
+    setState(() {
+      if (previousReaction == type) {
+        _userReactions.remove(eventId);
+      } else {
+        _userReactions[eventId] = type;
+      }
+    });
+
+    // 2. Optimistic count update on the local event object
+    if (_events != null) {
+      final idx = _events!.indexWhere((e) => e.id == eventId);
+      if (idx != -1) {
+        final event = _events![idx];
+        int newLikes = event.likeCount;
+        int newDislikes = event.dislikeCount;
+
+        if (previousReaction == ReactionType.like) newLikes = (newLikes - 1).clamp(0, 99999);
+        if (previousReaction == ReactionType.dislike) newDislikes = (newDislikes - 1).clamp(0, 99999);
+
+        if (previousReaction != type) {
+          if (type == ReactionType.like) newLikes++;
+          if (type == ReactionType.dislike) newDislikes++;
+        }
+
+        setState(() {
+          _events![idx] = event.copyWith(likeCount: newLikes, dislikeCount: newDislikes);
+        });
+      }
+    }
+
+    // 3. Debounced DB call — only fires after user stops tapping for 600ms
+    _reactionDebounceTimers[eventId] = Timer(const Duration(milliseconds: 600), () async {
+      if (!mounted) return;
+      _processingReactions.add(eventId);
+
+      try {
+        // Determine final desired state from current optimistic UI
+        final desiredReaction = _userReactions[eventId];
+
+        // Get actual DB state to decide what operation to perform
+        final currentDbReaction = await ReactionService.getUserReaction(_userId!, eventId);
+
+        if (desiredReaction == currentDbReaction) {
+          // Already in sync — nothing to do
+        } else if (desiredReaction == null && currentDbReaction != null) {
+          // User toggled off — remove
+          await ReactionService.toggleReaction(_userId!, eventId, currentDbReaction);
+        } else if (desiredReaction != null && currentDbReaction == null) {
+          // User added reaction — insert
+          await ReactionService.toggleReaction(_userId!, eventId, desiredReaction);
+        } else if (desiredReaction != null && currentDbReaction != null && desiredReaction != currentDbReaction) {
+          // User switched reaction — toggle current off then add new
+          await ReactionService.toggleReaction(_userId!, eventId, currentDbReaction);
+          await ReactionService.toggleReaction(_userId!, eventId, desiredReaction);
+        }
+
+        // Reload events to get authoritative counts from DB trigger
+        if (mounted) await _loadEvents();
+      } catch (e) {
+        // On error, reload everything to resync
+        if (mounted) {
+          _loadUserReactions();
+          _loadEvents();
+        }
+      } finally {
+        _processingReactions.remove(eventId);
+      }
+    });
   }
 
   String _formatDate(DateTime date) {
@@ -182,10 +308,9 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
   }
 
   String _formatLikeCount(int count) {
-    if (count >= 1000) {
-      return '${(count / 1000).toStringAsFixed(1)}K+ Like This Event';
-    }
-    return '$count+ Like This Event';
+    if (count >= 1000000) return '${(count / 1000000).toStringAsFixed(1)}M';
+    if (count >= 1000) return '${(count / 1000).toStringAsFixed(1)}K';
+    return '$count';
   }
 
   // Only admins can create events from the general Events page
@@ -357,8 +482,35 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
   }
 
   Widget _buildContent() {
-    final featuredEvents = _events?.take(5).toList() ?? [];
+    final now = DateTime.now();
     final allEvents = _events ?? [];
+
+    // Split into upcoming (active) and past events
+    final upcomingEvents = allEvents
+        .where((e) => e.date.isAfter(now) || e.date.isAtSameMomentAs(now))
+        .toList()
+      ..sort((a, b) => a.date.compareTo(b.date)); // earliest first
+
+    final pastEvents = allEvents
+        .where((e) => e.date.isBefore(now))
+        .toList()
+      ..sort((a, b) => b.date.compareTo(a.date)); // latest first
+
+    // ── Smart Featured Logic ──
+    // 1. Manually featured events first (admin-marked)
+    final manuallyFeatured = upcomingEvents.where((e) => e.isFeatured).toList();
+    // 2. Fill remaining slots (up to 5 total) with highest-attendee upcoming events
+    final autoFeatured = upcomingEvents
+        .where((e) => !e.isFeatured)
+        .toList()
+      ..sort((a, b) => b.currentAttendees.compareTo(a.currentAttendees));
+    final featuredEvents = [
+      ...manuallyFeatured,
+      ...autoFeatured.take((5 - manuallyFeatured.length).clamp(0, 5)),
+    ];
+
+    // Last 10 past events
+    final recentPastEvents = pastEvents.take(10).toList();
 
     return FadeTransition(
       opacity: _fadeController,
@@ -370,10 +522,9 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
             child: _buildSearchBar(),
           ),
 
-          // Featured Events Section
+          // Featured Events Section (upcoming only)
           SliverToBoxAdapter(
             child: _buildSectionHeader('Featured Event', 'See All', () {
-              // Show all featured events - scroll down or show a modal
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text('Showing all events below'),
@@ -383,44 +534,280 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
             }),
           ),
 
-          // Featured Carousel - Swipeable
+          // Featured Carousel - Swipeable (upcoming only)
           SliverToBoxAdapter(
             child: _buildFeaturedCarousel(featuredEvents),
           ),
 
-          // For You Section
+          // For You Section (upcoming only)
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.only(top: 28),
               child: _buildSectionHeader('For You', 'See All', () {
-                // Could navigate to a dedicated page or filter
                 Navigator.pushNamed(context, '/search');
               }),
             ),
           ),
 
-          // All Events List
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  if (index >= allEvents.length) return null;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: _buildEventListCard(allEvents[index]),
-                  );
-                },
-                childCount: allEvents.length,
+          // Upcoming Events List
+          if (upcomingEvents.isNotEmpty)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index >= upcomingEvents.length) return null;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _buildEventListCard(upcomingEvents[index]),
+                    );
+                  },
+                  childCount: upcomingEvents.length,
+                ),
+              ),
+            )
+          else
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                child: Container(
+                  padding: const EdgeInsets.all(32),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1E1B2E),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFF3D3557).withOpacity(0.5)),
+                  ),
+                  child: const Column(
+                    children: [
+                      Icon(Icons.event_busy, size: 48, color: Color(0xFFB8A9C9)),
+                      SizedBox(height: 12),
+                      Text(
+                        'No upcoming events',
+                        style: TextStyle(color: Color(0xFFB8A9C9), fontSize: 16),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        'Check back later for new events!',
+                        style: TextStyle(color: Color(0xFF7A6B8F), fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+
+          // ── Past Events Section ──
+          if (recentPastEvents.isNotEmpty) ...[
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 28),
+                child: _buildSectionHeader('Past Events', '${recentPastEvents.length} recent', () {}),
+              ),
+            ),
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    if (index >= recentPastEvents.length) return null;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: _buildPastEventCard(recentPastEvents[index]),
+                    );
+                  },
+                  childCount: recentPastEvents.length,
+                ),
+              ),
+            ),
+          ],
 
           // Bottom padding
           const SliverToBoxAdapter(
             child: SizedBox(height: 100),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Builds a card for past events with a dimmed style and "ENDED" badge
+  Widget _buildPastEventCard(Event event) {
+
+    return GestureDetector(
+      onTap: () => Navigator.pushNamed(context, '/event-detail', arguments: event.id),
+      child: Opacity(
+        opacity: 0.75,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1B2E),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0xFF3D3557).withOpacity(0.3),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Event Image with "ENDED" overlay
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: SizedBox(
+                  width: 100,
+                  height: 100,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      event.imageUrl != null && event.imageUrl!.isNotEmpty
+                          ? Image.network(
+                              event.imageUrl!,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => _buildSmallPlaceholder(),
+                            )
+                          : _buildSmallPlaceholder(),
+                      // Dark overlay
+                      Container(
+                        color: Colors.black.withOpacity(0.4),
+                      ),
+                      // "ENDED" badge
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.85),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'ENDED',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              // Event Details
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Title
+                    Text(
+                      event.title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white70,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    // Date
+                    Text(
+                      _formatDate(event.date),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF7A6B8F),
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    // Location
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.location_on,
+                          size: 14,
+                          color: Color(0xFF7A6B8F),
+                        ),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            event.venue,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF7A6B8F),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    // Reaction counts + attendees for past events
+                    Row(
+                      children: [
+                        const Icon(Icons.thumb_up_rounded, size: 12, color: Color(0xFF7A6B8F)),
+                        const SizedBox(width: 3),
+                        Text('${event.likeCount}', style: const TextStyle(fontSize: 11, color: Color(0xFF7A6B8F))),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.thumb_down_rounded, size: 12, color: Color(0xFF7A6B8F)),
+                        const SizedBox(width: 3),
+                        Text('${event.dislikeCount}', style: const TextStyle(fontSize: 11, color: Color(0xFF7A6B8F))),
+                        const SizedBox(width: 10),
+                        const Icon(Icons.people_outline, size: 12, color: Color(0xFF7A6B8F)),
+                        const SizedBox(width: 3),
+                        Text(
+                          '${event.currentAttendees} attended',
+                          style: const TextStyle(fontSize: 11, color: Color(0xFF7A6B8F)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Reusable pill-style reaction button for featured cards
+  Widget _buildReactionButton({
+    required IconData icon,
+    required IconData activeIcon,
+    required int count,
+    required bool isActive,
+    required Color activeColor,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2D2645),
+          borderRadius: BorderRadius.circular(20),
+          border: isActive
+              ? Border.all(color: activeColor.withOpacity(0.5))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isActive ? activeIcon : icon,
+              size: 16,
+              color: isActive ? activeColor : const Color(0xFFB8A9C9),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              _formatLikeCount(count),
+              style: TextStyle(
+                fontSize: 11,
+                color: isActive ? activeColor : const Color(0xFFB8A9C9),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -604,7 +991,7 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
   }
 
   Widget _buildFeaturedCard(Event event) {
-    final isBookmarked = _bookmarkedEventIds.contains(event.id);
+    final userReaction = _userReactions[event.id];
 
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/event-detail', arguments: event.id),
@@ -738,52 +1125,66 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
                       ],
                     ),
                     const Spacer(),
-                    // Actions row
+                    // Actions row: Like, Dislike, Attendees
                     Row(
                       children: [
-                        // Like button with real count
+                        // Like button
+                        _buildReactionButton(
+                          icon: Icons.thumb_up_rounded,
+                          activeIcon: Icons.thumb_up_rounded,
+                          count: event.likeCount,
+                          isActive: userReaction == ReactionType.like,
+                          activeColor: const Color(0xFF22C55E),
+                          onTap: () => _toggleReaction(event.id, ReactionType.like),
+                        ),
+                        const SizedBox(width: 8),
+                        // Dislike button
+                        _buildReactionButton(
+                          icon: Icons.thumb_down_outlined,
+                          activeIcon: Icons.thumb_down_rounded,
+                          count: event.dislikeCount,
+                          isActive: userReaction == ReactionType.dislike,
+                          activeColor: const Color(0xFFEF4444),
+                          onTap: () => _toggleReaction(event.id, ReactionType.dislike),
+                        ),
+                        const Spacer(),
+                        // Attendee count (registration-based)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2D2645),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.people_outline, size: 14, color: Color(0xFF9D4EDD)),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${event.currentAttendees}',
+                                style: const TextStyle(fontSize: 11, color: Color(0xFFB8A9C9)),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Bookmark button
                         GestureDetector(
                           onTap: () => _toggleBookmark(event.id),
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
                               color: const Color(0xFF2D2645),
-                              borderRadius: BorderRadius.circular(20),
-                              border: isBookmarked ? Border.all(
-                                color: const Color(0xFFEC4899).withOpacity(0.5),
-                              ) : null,
+                              shape: BoxShape.circle,
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isBookmarked ? Icons.favorite : Icons.favorite_border,
-                                  size: 16,
-                                  color: const Color(0xFFEC4899),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  _formatLikeCount(event.currentAttendees),
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFFB8A9C9),
-                                  ),
-                                ),
-                              ],
+                            child: Icon(
+                              _bookmarkedEventIds.contains(event.id)
+                                  ? Icons.bookmark_rounded
+                                  : Icons.bookmark_border_rounded,
+                              size: 18,
+                              color: _bookmarkedEventIds.contains(event.id)
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFFB8A9C9),
                             ),
-                          ),
-                        ),
-                        const Spacer(),
-                        // Share button
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF2D2645),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.share_outlined,
-                            size: 18,
-                            color: Color(0xFFB8A9C9),
                           ),
                         ),
                       ],
@@ -818,7 +1219,7 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
   }
 
   Widget _buildEventListCard(Event event) {
-    final isBookmarked = _bookmarkedEventIds.contains(event.id);
+    final userReaction = _userReactions[event.id];
 
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/event-detail', arguments: event.id),
@@ -906,26 +1307,91 @@ class _EventsPageState extends ConsumerState<EventsPage> with TickerProviderStat
                     ],
                   ),
                   const SizedBox(height: 8),
-                  // Like count - Real data
-                  GestureDetector(
-                    onTap: () => _toggleBookmark(event.id),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isBookmarked ? Icons.favorite : Icons.favorite_border,
-                          size: 14,
-                          color: const Color(0xFFEC4899),
+                  // Like / Dislike / Attendees row
+                  Row(
+                    children: [
+                      // Like
+                      GestureDetector(
+                        onTap: () => _toggleReaction(event.id, ReactionType.like),
+                        child: Row(
+                          children: [
+                            Icon(
+                              userReaction == ReactionType.like
+                                  ? Icons.thumb_up_rounded
+                                  : Icons.thumb_up_outlined,
+                              size: 14,
+                              color: userReaction == ReactionType.like
+                                  ? const Color(0xFF22C55E)
+                                  : const Color(0xFFB8A9C9),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${event.likeCount}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: userReaction == ReactionType.like
+                                    ? const Color(0xFF22C55E)
+                                    : const Color(0xFFB8A9C9),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _formatLikeCount(event.currentAttendees),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFFB8A9C9),
+                      ),
+                      const SizedBox(width: 12),
+                      // Dislike
+                      GestureDetector(
+                        onTap: () => _toggleReaction(event.id, ReactionType.dislike),
+                        child: Row(
+                          children: [
+                            Icon(
+                              userReaction == ReactionType.dislike
+                                  ? Icons.thumb_down_rounded
+                                  : Icons.thumb_down_outlined,
+                              size: 14,
+                              color: userReaction == ReactionType.dislike
+                                  ? const Color(0xFFEF4444)
+                                  : const Color(0xFFB8A9C9),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '${event.dislikeCount}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: userReaction == ReactionType.dislike
+                                    ? const Color(0xFFEF4444)
+                                    : const Color(0xFFB8A9C9),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Attendees (separate from reactions)
+                      Row(
+                        children: [
+                          const Icon(Icons.people_outline, size: 14, color: Color(0xFF9D4EDD)),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${event.currentAttendees}',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFFB8A9C9)),
                           ),
+                        ],
+                      ),
+                      const Spacer(),
+                      // Bookmark button
+                      GestureDetector(
+                        onTap: () => _toggleBookmark(event.id),
+                        child: Icon(
+                          _bookmarkedEventIds.contains(event.id)
+                              ? Icons.bookmark_rounded
+                              : Icons.bookmark_border_rounded,
+                          size: 18,
+                          color: _bookmarkedEventIds.contains(event.id)
+                              ? const Color(0xFFF59E0B)
+                              : const Color(0xFFB8A9C9),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ],
               ),

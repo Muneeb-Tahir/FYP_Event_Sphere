@@ -11,7 +11,6 @@ import '../services/event_service.dart';
 import '../services/auth_service.dart';
 import '../providers/auth_provider.dart';
 import '../utils/haptic_feedback.dart';
-import '../utils/user_friendly_error.dart';
 import '../models/event.dart';
 
 class BookmarksPage extends ConsumerStatefulWidget {

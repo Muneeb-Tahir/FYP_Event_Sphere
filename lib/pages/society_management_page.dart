@@ -44,7 +44,6 @@ class _SocietyManagementPageState extends State<SocietyManagementPage> {
   }
 
   Future<void> _createSociety() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final nameController = TextEditingController();
     final descController = TextEditingController();
     String? selectedCategory;
@@ -171,7 +170,6 @@ class _SocietyManagementPageState extends State<SocietyManagementPage> {
   }
 
   Future<void> _assignPresident(Society society) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Get list of presidents
     final presidents = await UserService.getUsersByRole('president');
@@ -222,7 +220,6 @@ class _SocietyManagementPageState extends State<SocietyManagementPage> {
   }
 
   Future<void> _deleteSociety(Society society) async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

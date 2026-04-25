@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/email_service.dart';
+import '../services/logging_service.dart';
 import '../models/user.dart';
 import '../utils/validators.dart';
 
@@ -81,7 +82,7 @@ class _RegistrationPageState extends State<RegistrationPage> with TickerProvider
           nameController.text.trim(),
         );
       } catch (emailError) {
-        print('Welcome email failed: $emailError');
+        LoggingService.warning('Welcome email failed: $emailError');
       }
 
       if (mounted) _showSuccessDialog();
@@ -138,7 +139,7 @@ class _RegistrationPageState extends State<RegistrationPage> with TickerProvider
             child: ElevatedButton(
               onPressed: () {
                 Navigator.pop(context);
-                Navigator.pushNamedAndRemoveUntil(context, '/home', (route) => false);
+                Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF9D4EDD),
@@ -147,7 +148,7 @@ class _RegistrationPageState extends State<RegistrationPage> with TickerProvider
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 elevation: 0,
               ),
-              child: const Text('Start Exploring', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text('Login Now', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             ),
           ),
         ],

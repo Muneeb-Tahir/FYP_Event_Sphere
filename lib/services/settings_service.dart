@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'logging_service.dart';
 
 class NotificationSettings {
   final bool eventReminders;
@@ -222,7 +223,7 @@ class SettingsService {
       await _box!.put('notifications', _settings.notifications.toMap());
       await _box!.put('privacy', _settings.privacy.toMap());
     } catch (e) {
-      debugPrint('Failed to save settings: $e');
+      LoggingService.error('Failed to save settings', e);
     }
   }
 
@@ -247,7 +248,7 @@ class SettingsService {
             : PrivacySettings(),
       );
     } catch (e) {
-      debugPrint('Failed to load settings: $e');
+      LoggingService.error('Failed to load settings', e);
       _settings = AppSettings();
     }
   }

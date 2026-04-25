@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../constants/app_theme.dart';
 import '../models/event.dart';
-import '../utils/accessibility.dart';
 
 /// Enhanced event card with animations and modern design
 class EventCard extends StatefulWidget {
@@ -358,6 +357,7 @@ class _EventCardState extends State<EventCard>
             ],
           ),
         ),
+      ),
       ),
     );
   }

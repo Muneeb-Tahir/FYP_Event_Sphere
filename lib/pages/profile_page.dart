@@ -31,7 +31,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
   bool _loadingStats = true;
   int _bookmarkCount = 0;
   StreamSubscription<List<String>>? _bookmarkSubscription;
-  final _formKey = GlobalKey<FormState>();
   String? _nameError;
   String? _emailError;
   String? _phoneError;
@@ -645,7 +644,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
   }
 
   Widget _buildStatCard(String label, String value, IconData icon, Color color, {VoidCallback? onTap}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Expanded(
       child: GestureDetector(
@@ -662,7 +660,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(isDark ? 0.2 : 0.12),
+                  color: color.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: color, size: 22),
@@ -709,7 +707,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
   }
 
   Widget _buildProfileCard(user) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -847,7 +844,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
     int maxLines = 1,
     String? errorText,
   }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final hasError = errorText != null && errorText.isNotEmpty;
 
     return Column(
@@ -982,7 +978,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> with TickerProviderSt
   }
 
   Widget _buildSettingsSection() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       decoration: BoxDecoration(

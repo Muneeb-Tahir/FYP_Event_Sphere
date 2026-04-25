@@ -42,11 +42,9 @@ class OfflineAction {
 class OfflineService {
   static const String _eventsBoxName = 'cached_events';
   static const String _actionsBoxName = 'offline_actions';
-  static const String _settingsBoxName = 'offline_settings';
 
   static Box? _eventsBox;
   static Box? _actionsBox;
-  static Box? _settingsBox;
 
   static bool _isOnline = true;
   static final StreamController<bool> _connectivityController =
@@ -60,7 +58,6 @@ class OfflineService {
   static Future<void> initialize() async {
     _eventsBox = await Hive.openBox(_eventsBoxName);
     _actionsBox = await Hive.openBox(_actionsBoxName);
-    _settingsBox = await Hive.openBox(_settingsBoxName);
 
     // Start monitoring connectivity
     _startConnectivityMonitoring();

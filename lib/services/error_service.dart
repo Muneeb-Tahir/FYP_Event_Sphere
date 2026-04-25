@@ -1,7 +1,7 @@
 // lib/services/error_service.dart
 // Centralized Error Handling with User-Friendly Messages
 
-import 'package:flutter/foundation.dart';
+import 'logging_service.dart';
 
 class ErrorService {
   // Convert technical errors to user-friendly messages
@@ -83,22 +83,18 @@ class ErrorService {
     }
 
     // Generic fallback
-    if (kDebugMode) {
-      debugPrint('Unhandled error: $error');
-    }
+    LoggingService.warning('Unhandled error type: $error');
     return 'Something went wrong. Please try again later.';
   }
 
   // Log error for debugging
   static void logError(String context, dynamic error, [StackTrace? stackTrace]) {
-    if (kDebugMode) {
-      debugPrint('[$context] Error: $error');
-      if (stackTrace != null) {
-        debugPrint('Stack trace: $stackTrace');
-      }
-    }
-    // TODO: Add Firebase Crashlytics logging here
+    // Use LoggingService for structured logging (filtered in production)
+    LoggingService.error('[$context] $error', error, stackTrace);
+
+    // Crashlytics placeholder — when Firebase Crashlytics is added, report here:
     // FirebaseCrashlytics.instance.recordError(error, stackTrace);
+    LoggingService.fatal('[$context] Crash report would be sent', error, stackTrace);
   }
 
   // Check if error is a network error

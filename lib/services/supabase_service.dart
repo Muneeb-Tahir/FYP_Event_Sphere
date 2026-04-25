@@ -25,4 +25,5 @@ class SupabaseService {
   static SupabaseQueryBuilder get expenses => client.from('expenses');
   static SupabaseQueryBuilder get polls => client.from('polls');
   static SupabaseQueryBuilder get societies => client.from('societies');
+  static SupabaseQueryBuilder get eventReactions => client.from('event_reactions');
 }

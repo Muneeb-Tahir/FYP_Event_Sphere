@@ -5,6 +5,7 @@ import 'dart:async';
 import '../models/announcement.dart';
 import 'supabase_service.dart';
 import 'logging_service.dart';
+import 'cache_service.dart';
 
 class AnnouncementService {
   // ------------------------- STREAM ANNOUNCEMENTS -------------------------
@@ -85,14 +86,33 @@ class AnnouncementService {
   }
 
   // ------------------------- MARK AS READ -------------------------
-  /// Track read status locally per-device using Hive cache
+  /// Track read status locally per-device using Hive cache.
+  /// Read IDs are persisted so they survive app restarts.
   static final Set<String> _readIds = {};
+  static bool _readIdsLoaded = false;
+
+  static void _ensureReadIdsLoaded() {
+    if (_readIdsLoaded) return;
+    final stored = CacheService.getSetting('announcement_read_ids');
+    if (stored != null && stored.isNotEmpty) {
+      _readIds.addAll(stored.split(','));
+    }
+    _readIdsLoaded = true;
+  }
+
+  static Future<void> _persistReadIds() async {
+    await CacheService.saveSetting('announcement_read_ids', _readIds.join(','));
+  }
 
   static Future<void> markAsRead(String userId, String announcementId) async {
-    _readIds.add('${userId}_$announcementId');
+    _ensureReadIdsLoaded();
+    final key = '${userId}_$announcementId';
+    _readIds.add(key);
+    await _persistReadIds();
   }
 
   static bool isRead(String userId, String announcementId) {
+    _ensureReadIdsLoaded();
     return _readIds.contains('${userId}_$announcementId');
   }
 }

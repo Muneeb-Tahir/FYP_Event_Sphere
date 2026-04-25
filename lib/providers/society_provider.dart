@@ -87,5 +87,6 @@ final isSocietyMemberProvider = FutureProvider.family<bool, ({String societyId, 
 
 /// Get member's role in society
 final memberRoleProvider = FutureProvider.family<String?, ({String societyId, String userId})>((ref, params) async {
-  return await SocietyService.getMemberRole(params.societyId, params.userId);
+  final member = await SocietyService.getMemberRole(params.societyId, params.userId);
+  return member?.societyRole;
 });

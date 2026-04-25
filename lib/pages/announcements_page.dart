@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/announcement_service.dart';
+import '../models/announcement.dart';
 import '../providers/auth_provider.dart';
 import '../models/user.dart';
 
@@ -139,8 +140,8 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
       try {
         await AnnouncementService.createAnnouncement(
           title: titleController.text,
-          message: messageController.text,
-          isUrgent: isUrgent,
+          content: messageController.text,
+          priority: isUrgent ? AnnouncementPriority.urgent : AnnouncementPriority.normal,
         );
         _showSnackBar('Announcement created');
         await _refreshAnnouncements();
@@ -315,7 +316,7 @@ class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  announcement.message,
+                  announcement.content,
                   style: const TextStyle(fontSize: 13, color: Color(0xFFB8A9C9)),
                 ),
               ],

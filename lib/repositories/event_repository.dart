@@ -33,6 +33,7 @@ class EventRepository implements BaseRepository<Event> {
       final data = await _events
           .select()
           .eq('approval_status', 'approved')
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       final events = (data as List).map((e) => Event.fromMap(e)).toList();
@@ -134,6 +135,7 @@ class EventRepository implements BaseRepository<Event> {
           .select()
           .eq('category', category)
           .eq('approval_status', 'approved')
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       final events = (data as List).map((e) => Event.fromMap(e)).toList();
@@ -151,6 +153,7 @@ class EventRepository implements BaseRepository<Event> {
       final data = await _events
           .select()
           .eq('society_id', societyId)
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       final events = (data as List).map((e) => Event.fromMap(e)).toList();
@@ -168,6 +171,7 @@ class EventRepository implements BaseRepository<Event> {
       final data = await _events
           .select()
           .eq('created_by', userId)
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       final events = (data as List).map((e) => Event.fromMap(e)).toList();
@@ -186,6 +190,7 @@ class EventRepository implements BaseRepository<Event> {
           .select()
           .or('title.ilike.%$query%,description.ilike.%$query%,venue.ilike.%$query%')
           .eq('approval_status', 'approved')
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       final events = (data as List).map((e) => Event.fromMap(e)).toList();
@@ -203,6 +208,7 @@ class EventRepository implements BaseRepository<Event> {
       final data = await _events
           .select()
           .eq('approval_status', 'pending')
+          .isFilter('deleted_at', null)
           .order('date', ascending: true);
 
       final events = (data as List).map((e) => Event.fromMap(e)).toList();
@@ -260,7 +266,9 @@ class EventRepository implements BaseRepository<Event> {
         .stream(primaryKey: ['id'])
         .order('date', ascending: true)
         .map((data) {
-          final approved = data.where((e) => e['approval_status'] == 'approved').toList();
+          final approved = data
+              .where((e) => e['approval_status'] == 'approved' && e['deleted_at'] == null)
+              .toList();
           return approved.map((e) => Event.fromMap(e)).toList();
         });
   }

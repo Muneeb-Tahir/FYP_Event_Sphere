@@ -552,7 +552,8 @@ class _HomePageState extends ConsumerState<HomePage> with TickerProviderStateMix
         if (currentUser?.role == UserRole.admin || currentUser?.role == UserRole.superAdmin || currentUser?.role == UserRole.president || currentUser?.role == UserRole.vicePresident)
           _buildMenuOption('Expenses', 'Track and manage spending', Icons.account_balance_wallet_rounded, const Color(0xFF22C55E), '/expenses'),
         _buildMenuOption('FAQ', 'Find answers to common questions', Icons.help_rounded, const Color(0xFF3B82F6), '/faq'),
-        _buildMenuOption('QR Scanner', 'Scan event QR codes', Icons.qr_code_scanner_rounded, const Color(0xFF06B6D4), '/qr-scan'),
+        if (currentUser?.role == UserRole.admin || currentUser?.role == UserRole.superAdmin || currentUser?.role == UserRole.president || currentUser?.role == UserRole.vicePresident)
+          _buildMenuOption('QR Scanner', 'Scan event QR codes', Icons.qr_code_scanner_rounded, const Color(0xFF06B6D4), '/qr-scan'),
         _buildMenuOption('Chatbot', 'Get instant help', Icons.smart_toy_rounded, const Color(0xFFEC4899), '/chatbot'),
       ],
     );

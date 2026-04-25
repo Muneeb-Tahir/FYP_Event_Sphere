@@ -1,7 +1,10 @@
 // lib/pages/qr_generate_page.dart
+// Secure QR Code generation page with download & share support
 
 import 'dart:io';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -54,10 +57,12 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
         throw Exception('Event not found');
       }
 
-      // Generate QR data
-      final qrData = QrService.generateQrData(
+      // Generate secure QR data (JSON + base64 + HMAC)
+      final qrData = QrService.generateQrCode(
         eventId: widget.eventId,
         userId: user.id,
+        userName: user.name,
+        eventTitle: event.title,
       );
 
       if (mounted) {
@@ -81,13 +86,15 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
     }
 
     setState(() {
-      _qrData = QrService.generateQrData(
+      _qrData = QrService.generateQrCode(
         eventId: widget.eventId,
         userId: user.id,
+        userName: user.name,
+        eventTitle: _event?.title ?? '',
       );
     });
 
-    _showSnackBar('QR code regenerated');
+    _showSnackBar('QR code regenerated with fresh timestamp');
   }
 
   // ------------------------- HANDLE ERROR -------------------------
@@ -102,6 +109,7 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
 
   // ------------------------- SHOW SNACKBAR -------------------------
   void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -111,64 +119,83 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
     );
   }
 
+  // ------------------------- CAPTURE QR AS IMAGE BYTES -------------------------
+  Future<Uint8List?> _captureQrImage() async {
+    try {
+      // Use QrPainter to render QR to image bytes
+      final qrPainter = QrPainter(
+        data: _qrData ?? widget.eventId,
+        version: QrVersions.auto,
+        gapless: true,
+        color: const Color(0xFF000000),
+        emptyColor: const Color(0xFFFFFFFF),
+      );
+
+      final image = await qrPainter.toImage(600); // High resolution
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      return byteData?.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('Error capturing QR image: $e');
+      return null;
+    }
+  }
+
   // ------------------------- DOWNLOAD QR -------------------------
   Future<void> _downloadQr() async {
     try {
-      final image = await _captureQrImage();
-      if (image == null) {
-        _showSnackBar('Failed to capture QR code', isError: true);
+      final imageBytes = await _captureQrImage();
+      if (imageBytes == null) {
+        _showSnackBar('Failed to generate QR image', isError: true);
         return;
       }
 
-      final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'qr_${widget.eventId}_${DateTime.now().millisecondsSinceEpoch}.png';
-      final file = File('${directory.path}/$fileName');
-      await file.writeAsBytes(image);
+      if (kIsWeb) {
+        // Web: Use share/download via share_plus or trigger download
+        _showSnackBar('On web, use the Share button to save the QR code');
+        return;
+      }
 
-      _showSnackBar('QR code saved to: $fileName');
+      // Mobile: Save to documents directory
+      final directory = await getApplicationDocumentsDirectory();
+      final fileName = 'EventSphere_QR_${_event?.title ?? widget.eventId}_${DateTime.now().millisecondsSinceEpoch}.png';
+      final sanitizedName = fileName.replaceAll(RegExp(r'[^\w\-.]'), '_');
+      final file = File('${directory.path}/$sanitizedName');
+      await file.writeAsBytes(imageBytes);
+
+      _showSnackBar('QR code saved: $sanitizedName');
     } catch (e) {
-      _showSnackBar('Download failed: $e', isError: true);
+      _showSnackBar('Download failed: ${e.toString()}', isError: true);
     }
   }
 
   // ------------------------- SHARE QR -------------------------
   Future<void> _shareQr() async {
     try {
-      final image = await _captureQrImage();
-      if (image == null) {
-        _showSnackBar('Failed to capture QR code', isError: true);
+      final imageBytes = await _captureQrImage();
+      if (imageBytes == null) {
+        _showSnackBar('Failed to generate QR image', isError: true);
         return;
       }
 
-      final directory = await getTemporaryDirectory();
-      final file = File('${directory.path}/event_qr.png');
-      await file.writeAsBytes(image);
+      if (kIsWeb) {
+        // Web: Share as XFile from bytes
+        await Share.shareXFiles(
+          [XFile.fromData(imageBytes, mimeType: 'image/png', name: 'event_qr.png')],
+          text: 'My QR code for ${_event?.title ?? "event"}',
+        );
+      } else {
+        // Mobile: Save to temp then share
+        final directory = await getTemporaryDirectory();
+        final file = File('${directory.path}/event_qr.png');
+        await file.writeAsBytes(imageBytes);
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'My QR code for ${_event?.title ?? "event"}',
-      );
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'My QR code for ${_event?.title ?? "event"}',
+        );
+      }
     } catch (e) {
-      _showSnackBar('Share failed: $e', isError: true);
-    }
-  }
-
-  // ------------------------- CAPTURE QR IMAGE -------------------------
-  Future<List<int>?> _captureQrImage() async {
-    try {
-      // Generate QR image directly from data
-      final qrPainter = QrPainter(
-        data: _qrData ?? widget.eventId,
-        version: QrVersions.auto,
-        gapless: true,
-      );
-
-      final image = await qrPainter.toImage(300);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-
-      return byteData?.buffer.asUint8List();
-    } catch (e) {
-      return null;
+      _showSnackBar('Share failed: ${e.toString()}', isError: true);
     }
   }
 
@@ -265,34 +292,69 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
               ),
             ),
 
-          // QR Code
+          // Security badge
           Container(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFF9D4EDD).withOpacity(0.2),
-                  blurRadius: 20,
-                  offset: const Offset(0, 4),
+              color: Colors.green.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green.withOpacity(0.3)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.verified_user, size: 14, color: Colors.green),
+                SizedBox(width: 6),
+                Text(
+                  'HMAC Signed • Expires in 24h',
+                  style: TextStyle(fontSize: 11, color: Colors.green),
                 ),
               ],
             ),
-            child: Column(
-              children: [
-                QrImageView(
-                  data: _qrData ?? widget.eventId,
-                  version: QrVersions.auto,
-                  size: 200.0,
-                  backgroundColor: Colors.white,
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Show this at the event entrance',
-                  style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
-                ),
-              ],
+          ),
+
+          // QR Code
+          RepaintBoundary(
+            key: _qrKey,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF9D4EDD).withOpacity(0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  QrImageView(
+                    data: _qrData ?? widget.eventId,
+                    version: QrVersions.auto,
+                    size: 220.0,
+                    backgroundColor: Colors.white,
+                    errorCorrectionLevel: QrErrorCorrectLevel.H, // High error correction
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    _event?.title ?? 'Event',
+                    style: const TextStyle(
+                      color: Color(0xFF1E1B2E),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Show this at the event entrance',
+                    style: TextStyle(color: Color(0xFF6B7280), fontSize: 12),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -307,8 +369,9 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
                   icon: const Icon(Icons.download, color: Color(0xFF9D4EDD)),
                   label: const Text('Download', style: TextStyle(color: Color(0xFF9D4EDD))),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
                     side: const BorderSide(color: Color(0xFF9D4EDD)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                 ),
               ),
@@ -317,7 +380,7 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
                 child: Container(
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(colors: [Color(0xFF8B5CF6), Color(0xFFEC4899)]),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: ElevatedButton.icon(
                     onPressed: _shareQr,
@@ -326,16 +389,28 @@ class _QrGeneratePageState extends ConsumerState<QrGeneratePage> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shadowColor: Colors.transparent,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                   ),
                 ),
               ),
             ],
           ),
+
+          const SizedBox(height: 16),
+
+          // Regenerate button
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: _regenerateQr,
+              icon: const Icon(Icons.refresh, color: Color(0xFFB8A9C9), size: 18),
+              label: const Text('Regenerate QR Code', style: TextStyle(color: Color(0xFFB8A9C9))),
+            ),
+          ),
         ],
       ),
     );
   }
 }
-

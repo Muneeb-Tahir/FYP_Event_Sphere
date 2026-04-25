@@ -79,16 +79,22 @@ class AppNotification {
     }
   }
 
+  /// Convert camelCase to snake_case safely
+  static String _camelToSnake(String input) {
+    final result = input.replaceAllMapped(
+      RegExp(r'[A-Z]'),
+      (match) => '_${match.group(0)!.toLowerCase()}',
+    );
+    return result.startsWith('_') ? result.substring(1) : result;
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'user_id': userId,
       'title': title,
       'body': body,
-      'type': type.name.replaceAllMapped(
-        RegExp(r'[A-Z]'),
-        (match) => '_${match.group(0)!.toLowerCase()}',
-      ).substring(1), // Convert camelCase to snake_case
+      'type': _camelToSnake(type.name),
       'created_at': createdAt.toIso8601String(),
       'is_read': isRead,
       'read_at': readAt?.toIso8601String(),
